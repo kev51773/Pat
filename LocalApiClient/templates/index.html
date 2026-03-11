@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local API Client</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', v=2) }}">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header" style="flex-direction: column; align-items: stretch; gap: 12px; padding-bottom: 12px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <h2><i class="fas fa-rocket"></i> API flows</h2>
+                    <div style="display: flex; gap: 4px;">
+                        <button id="envBtn" class="btn-icon" title="Environment Variables"><i class="fas fa-globe"></i></button>
+                        <button id="newRequestBtn" class="btn-icon" title="New Request"><i class="fas fa-plus"></i></button>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <span style="font-size: 0.8rem; color: var(--text-muted);">Flow:</span>
+                    <select id="activeFlowSelect" style="flex: 1; padding: 6px; background: rgba(0,0,0,0.2); color: var(--text-main); border: 1px solid var(--border); border-radius: var(--radius-sm); outline: none; font-size: 0.85rem;">
+                        <option value="Default">Default</option>
+                    </select>
+                    <button id="newFlowBtn" class="btn-icon" style="padding: 6px;" title="Create New Flow"><i class="fas fa-folder-plus"></i></button>
+                </div>
+            </div>
+            <div class="collections-container">
+                <div class="collection-list" id="collectionList">
+                    <!-- Saved requests populated here -->
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <header class="request-bar">
+                <div class="method-selector">
+                    <select id="stepType" class="method-select" style="background:#1e293b; color:#f8fafc; border-color:var(--border); margin-right: 8px;">
+                        <option value="request">🌐 HTTP Request</option>
+                        <option value="clear_vars">🧹 Clear Variables</option>
+                        <option value="delay">⏱️ Delay</option>
+                        <option value="script">📜 Script</option>
+                        <option value="conditional">❓ Conditional</option>
+                    </select>
+                </div>
+                <div class="method-selector" id="reqMethodContainer">
+                    <select id="reqMethod" class="method-select GET">
+                        <option value="GET">GET</option>
+                        <option value="POST">POST</option>
+                        <option value="PUT">PUT</option>
+                        <option value="PATCH">PATCH</option>
+                        <option value="DELETE">DELETE</option>
+                    </select>
+                </div>
+                <div class="url-input-container" id="reqUrlContainer">
+                    <input type="text" id="reqUrl" class="url-input" placeholder="Enter request URL" value="https://jsonplaceholder.typicode.com/posts/1">
+                </div>
+                <button id="sendBtn" class="btn-primary">Send <i class="fas fa-paper-plane"></i></button>
+                <button id="saveBtn" class="btn-secondary" title="Save Step"><i class="fas fa-save"></i></button>
+            </header>
+
+            <div class="workspace-split">
+                <!-- Request Configuration (Shown for HTTP Requests) -->
+                <div id="configRequest" style="display: flex; flex-direction: column; gap: 20px; flex: 1; min-height: 0;">
+                    <section class="request-config panel">
+                    <div class="panel-header">
+                        <div class="tabs">
+                            <div class="tab active" data-target="headers">Headers</div>
+                            <div class="tab" data-target="body">Body</div>
+                            <div class="tab" data-target="vars">Extract</div>
+                        </div>
+                    </div>
+                    <div class="panel-body">
+                        <!-- Headers Tab -->
+                        <div id="tab-headers" class="tab-content active">
+                            <div class="key-value-editor" id="headersEditor">
+                                <!-- Headers rows go here -->
+                                <button id="addHeaderBtn" class="btn-outline btn-small"><i class="fas fa-plus"></i> Add Header</button>
+                            </div>
+                        </div>
+                        <!-- Body Tab -->
+                        <div id="tab-body" class="tab-content">
+                            <div class="body-editor-controls">
+                                <label><input type="radio" name="bodyType" value="none" checked> None</label>
+                                <label><input type="radio" name="bodyType" value="json"> JSON</label>
+                                <label><input type="radio" name="bodyType" value="text"> Text</label>
+                            </div>
+                            <textarea id="bodyEditor" class="code-editor" placeholder="Enter request body here..." disabled></textarea>
+                        </div>
+                        <!-- Extract Tab -->
+                        <div id="tab-vars" class="tab-content">
+                            <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 12px;">Extract variables from JSON response (e.g. data.token).</p>
+                            <div class="key-value-editor" id="varsEditor">
+                                <button id="addVarBtn" class="btn-outline btn-small"><i class="fas fa-plus"></i> Add Extraction Rule</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Response Viewer -->
+                <section class="response-viewer panel">
+                    <div class="panel-header">
+                        <div class="response-meta">
+                            <span class="status-badge" id="resStatus">Status: --</span>
+                            <span class="meta-item" id="resTime"><i class="fas fa-clock"></i> -- ms</span>
+                            <span class="meta-item" id="resSize"><i class="fas fa-save"></i> -- B</span>
+                        </div>
+                        <div class="tabs">
+                            <div class="tab active" data-target="res-body">Body</div>
+                            <div class="tab" data-target="res-headers">Headers</div>
+                        </div>
+                    </div>
+                    <div class="panel-body">
+                        <div id="tab-res-body" class="tab-content active">
+                            <div id="loadingOverlay" class="loading-overlay hidden">
+                                <i class="fas fa-circle-notch fa-spin"></i> Loading...
+                            </div>
+                            <pre id="responseBody" class="code-view">Response will appear here...</pre>
+                        </div>
+                        <div id="tab-res-headers" class="tab-content">
+                            <pre id="responseHeaders" class="code-view">Headers will appear here...</pre>
+                        </div>
+                    </div>
+                </section>
+                </div>
+
+                <!-- Action Configuration (Shown for Actions) -->
+                <div id="configAction" class="panel hidden" style="flex: 1;">
+                    <div class="panel-header" style="height: 44px; display: flex; align-items: center; color: var(--text-muted); font-weight: 500;">
+                        <i class="fas fa-cogs" style="margin-right: 8px;"></i> Action Configuration
+                    </div>
+                    <div class="panel-body">
+                        <!-- Clear Vars -->
+                        <div id="ui-clear_vars" class="action-ui hidden">
+                            <h3 style="margin-bottom: 8px;">🧹 Clear Variables</h3>
+                            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">Specify the names of the environment variables to remove (comma separated).</p>
+                            <input type="text" id="clearVarsInput" placeholder="token, user_id" style="width: 100%; background: var(--bg-input); border: 1px solid var(--border); color: var(--text-main); padding: 10px; border-radius: var(--radius-sm); outline: none;">
+                        </div>
+
+                        <!-- Delay -->
+                        <div id="ui-delay" class="action-ui hidden">
+                            <h3 style="margin-bottom: 8px;">⏱️ Delay</h3>
+                            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">Pause flow execution for a specific duration.</p>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <input type="number" id="delayMsInput" placeholder="5000" style="width: 150px; background: var(--bg-input); border: 1px solid var(--border); color: var(--text-main); padding: 10px; border-radius: var(--radius-sm); outline: none;">
+                                <span style="color: var(--text-muted);">milliseconds</span>
+                            </div>
+                        </div>
+
+                        <!-- Script -->
+                        <div id="ui-script" class="action-ui hidden">
+                            <h3 style="margin-bottom: 8px;">📜 Script</h3>
+                            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">Execute Javascript. The <code>env</code> object is available for reading/modifying variables.</p>
+                            <textarea id="scriptInput" class="code-editor" style="height: 300px;" placeholder="env['new_var'] = env['old_var'] + '_suffix';"></textarea>
+                        </div>
+
+                        <!-- Conditional -->
+                        <div id="ui-conditional" class="action-ui hidden">
+                            <h3 style="margin-bottom: 8px;">❓ Conditional Abort</h3>
+                            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">Evaluate a condition. If it fails, the remainder of the flow is aborted.</p>
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                <input type="text" id="condVar" placeholder="{{status}}" style="flex: 1; min-width: 0; background: var(--bg-input); border: 1px solid var(--border); color: var(--text-main); padding: 10px; border-radius: var(--radius-sm); outline: none;">
+                                
+                                <select id="condOp" style="background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border); padding: 10px; border-radius: var(--radius-sm); outline: none;">
+                                    <option value="==">==</option>
+                                    <option value="!=">!=</option>
+                                    <option value=">">&gt;</option>
+                                    <option value="<">&lt;</option>
+                                </select>
+
+                                <input type="text" id="condVal" placeholder="active" style="flex: 1; min-width: 0; background: var(--bg-input); border: 1px solid var(--border); color: var(--text-main); padding: 10px; border-radius: var(--radius-sm); outline: none;">
+                            </div>
+                            <div style="margin-top: 16px; padding: 12px; border-radius: var(--radius-sm); background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3);">
+                                <i class="fas fa-info-circle" style="color: #fca5a5; margin-right: 6px;"></i> <span style="font-size: 0.85rem; color: #fca5a5;">If the statement resolves to false, flow execution will immediately stop. Empty variables resolve to undefined.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Save Modal -->
+    <div id="saveModal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Save Request</h3>
+            <div class="input-group">
+                <label>Name</label>
+                <input type="text" id="saveReqName" placeholder="e.g. Get User Profile">
+            </div>
+            <div class="input-group" style="margin-top: 16px; padding: 8px; background: rgba(59, 130, 246, 0.1); border-radius: 4px;">
+                <label id="saveFlowLabel" style="color: #60a5fa; margin-bottom: 0;">Adding to Flow: Default</label>
+            </div>
+            <div class="modal-actions">
+                <button id="cancelSaveBtn" class="btn-secondary">Cancel</button>
+                <button id="confirmSaveBtn" class="btn-primary">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Environment Modal -->
+    <div id="envModal" class="modal hidden">
+        <div class="modal-content" style="width: 500px;">
+            <h3>Environment Variables</h3>
+            <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 12px;">Use {{var_name}} in URL, Headers, and Body.</p>
+            <textarea id="envEditor" class="code-editor" style="height: 200px; margin-bottom: 16px;"></textarea>
+            <div class="modal-actions">
+                <button id="closeEnvBtn" class="btn-primary">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Flow Runner Modal -->
+    <div id="flowRunnerModal" class="modal hidden">
+        <div class="modal-content" style="width: 650px; height: 80vh; display: flex; flex-direction: column;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h3 id="flowRunnerTitle">Running Flow</h3>
+                <span id="flowRunnerStatus" class="status-badge" style="background: rgba(255,255,255,0.1)">Pending</span>
+            </div>
+            <div id="flowRunnerLogs" style="flex: 1; overflow-y: auto; background: #0d1117; padding: 16px; font-family: 'Consolas', 'Monaco', monospace; font-size: 0.85rem; border-radius: 4px; border: 1px solid var(--border);">
+            </div>
+            <div class="modal-actions">
+                <button id="closeFlowRunnerBtn" class="btn-primary">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Extract Popup -->
+    <div id="extractPopup" class="extract-popup hidden">
+        <input type="text" id="extractVarName" placeholder="Variable name" style="width: 180px; padding: 8px; background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border); border-radius: var(--radius-sm); outline: none;">
+        <button id="confirmExtractBtn" class="btn-primary" style="padding: 8px 16px;">Save Rule</button>
+        <button id="cancelExtractBtn" class="btn-icon"><i class="fas fa-times"></i></button>
+    </div>
+
+    <script src="{{ url_for('static', filename='js/app.js', v=2) }}"></script>
+</body>
+</html>
