@@ -65,6 +65,15 @@ document.addEventListener('DOMContentLoaded', () => {
     let savedCollections = [];
     let savedEnvironment = {};
 
+    // --- Auth DOM Elements ---
+    const authRadios = document.querySelectorAll('input[name="authType"]');
+    const authBasicUI = document.getElementById('auth-basic-ui');
+    const authBearerUI = document.getElementById('auth-bearer-ui');
+    const authNoneUI = document.getElementById('auth-none-ui');
+    const authBasicUser = document.getElementById('authBasicUser');
+    const authBasicPass = document.getElementById('authBasicPass');
+    const authBearerToken = document.getElementById('authBearerToken');
+
     // --- Tab Switching Logic ---
     function setupTabs(tabsNodeList) {
         tabsNodeList.forEach(tab => {
@@ -161,6 +170,37 @@ document.addEventListener('DOMContentLoaded', () => {
         return ext;
     }
 
+    // --- Auth Logic ---
+    authRadios.forEach(radio => {
+        radio.addEventListener('change', (e) => {
+            authBasicUI.classList.add('hidden');
+            authBearerUI.classList.add('hidden');
+            authNoneUI.classList.add('hidden');
+            if (e.target.value === 'basic') authBasicUI.classList.remove('hidden');
+            else if (e.target.value === 'bearer') authBearerUI.classList.remove('hidden');
+            else authNoneUI.classList.remove('hidden');
+        });
+    });
+
+    function getAuth() {
+        const authType = document.querySelector('input[name="authType"]:checked').value;
+        if (authType === 'basic') return { type: 'basic', username: authBasicUser.value, password: authBasicPass.value };
+        if (authType === 'bearer') return { type: 'bearer', token: authBearerToken.value };
+        return { type: 'none' };
+    }
+    
+    function setAuth(auth) {
+        if (!auth) auth = { type: 'none' };
+        document.querySelector(`input[name="authType"][value="${auth.type}"]`).checked = true;
+        document.querySelector(`input[name="authType"][value="${auth.type}"]`).dispatchEvent(new Event('change'));
+        if (auth.type === 'basic') {
+            authBasicUser.value = auth.username || '';
+            authBasicPass.value = auth.password || '';
+        } else if (auth.type === 'bearer') {
+            authBearerToken.value = auth.token || '';
+        }
+    }
+
     // --- Environment Interpolation Logic ---
     let approvedMissingVars = new Set();
 
@@ -252,6 +292,16 @@ document.addEventListener('DOMContentLoaded', () => {
             const rawHeaders = getHeaders();
             for (let k in rawHeaders) {
                 requestData.headers[await interpolateStr(k)] = await interpolateStr(rawHeaders[k]);
+            }
+
+            const authInfo = getAuth();
+            if (authInfo.type === 'basic') {
+                const u = await interpolateStr(authInfo.username);
+                const p = await interpolateStr(authInfo.password);
+                requestData.headers['Authorization'] = 'Basic ' + btoa(u + ':' + p);
+            } else if (authInfo.type === 'bearer') {
+                const t = await interpolateStr(authInfo.token);
+                requestData.headers['Authorization'] = 'Bearer ' + t;
             }
 
             const bodyType = document.querySelector('input[name="bodyType"]:checked').value;
@@ -770,6 +820,18 @@ ${sBody ? `<div style="color:#34d399; font-weight:bold; margin-bottom:4px;">RES 
                         requestData.headers[await interpolateStr(k)] = await interpolateStr(req.headers[k]);
                     }
                 }
+                
+                if (req.auth) {
+                    if (req.auth.type === 'basic') {
+                        const u = await interpolateStr(req.auth.username);
+                        const p = await interpolateStr(req.auth.password);
+                        requestData.headers['Authorization'] = 'Basic ' + btoa(u + ':' + p);
+                    } else if (req.auth.type === 'bearer') {
+                        const t = await interpolateStr(req.auth.token);
+                        requestData.headers['Authorization'] = 'Bearer ' + t;
+                    }
+                }
+
                 if (req.body) {
                     if (typeof req.body === 'object') {
                         if (!requestData.headers['Content-Type']) requestData.headers['Content-Type'] = 'application/json';
@@ -866,6 +928,9 @@ ${sBody ? `<div style="color:#34d399; font-weight:bold; margin-bottom:4px;">RES 
             // Clear existing tabs content
             document.querySelectorAll('.key-value-row').forEach(r => r.remove());
             
+            // Load Auth
+            setAuth(req.auth);
+            
             // Load Extractors
             if(req.extractors) {
                 Object.entries(req.extractors).forEach(([k, v]) => addVarRow(k, v));
@@ -921,6 +986,9 @@ ${sBody ? `<div style="color:#34d399; font-weight:bold; margin-bottom:4px;">RES 
         // Clear all tabs content (headers and extractors)
         document.querySelectorAll('.key-value-row').forEach(r => r.remove());
 
+        // Reset Auth
+        setAuth({ type: 'none' });
+
         // Reset Body
         document.querySelector(`input[name="bodyType"][value="none"]`).checked = true;
         bodyEditor.disabled = true;
@@ -965,6 +1033,7 @@ ${sBody ? `<div style="color:#34d399; font-weight:bold; margin-bottom:4px;">RES 
                 url: reqUrl.value.trim(),
                 method: reqMethod.value,
                 headers: getHeaders(),
+                auth: getAuth(),
                 extractors: getExtractors(),
                 body: document.querySelector('input[name="bodyType"]:checked').value === 'json' ? 
                       JSON.parse(bodyEditor.value || '{}') : 

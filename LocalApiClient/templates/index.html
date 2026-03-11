@@ -70,6 +70,7 @@
                     <div class="panel-header">
                         <div class="tabs">
                             <div class="tab active" data-target="headers">Headers</div>
+                            <div class="tab" data-target="auth">Auth</div>
                             <div class="tab" data-target="body">Body</div>
                             <div class="tab" data-target="vars">Extract</div>
                         </div>
@@ -80,6 +81,36 @@
                             <div class="key-value-editor" id="headersEditor">
                                 <!-- Headers rows go here -->
                                 <button id="addHeaderBtn" class="btn-outline btn-small"><i class="fas fa-plus"></i> Add Header</button>
+                            </div>
+                        </div>
+                        <!-- Auth Tab -->
+                        <div id="tab-auth" class="tab-content">
+                            <div class="body-editor-controls" style="margin-bottom: 20px;">
+                                <label><input type="radio" name="authType" value="none" checked> No Auth</label>
+                                <label><input type="radio" name="authType" value="basic"> Basic Auth</label>
+                                <label><input type="radio" name="authType" value="bearer"> Bearer Token</label>
+                            </div>
+                            
+                            <div id="auth-basic-ui" class="hidden">
+                                <div class="input-group" style="margin-top:0;">
+                                    <label>Username</label>
+                                    <input type="text" id="authBasicUser" placeholder="{{username}}" style="background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); padding:8px; border-radius:var(--radius-sm); width:100%; max-width: 400px; margin-bottom: 12px; outline: none;">
+                                </div>
+                                <div class="input-group" style="margin-top:0;">
+                                    <label>Password</label>
+                                    <input type="text" id="authBasicPass" placeholder="{{password}}" style="background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); padding:8px; border-radius:var(--radius-sm); width:100%; max-width: 400px; outline: none;">
+                                </div>
+                            </div>
+
+                            <div id="auth-bearer-ui" class="hidden">
+                                <div class="input-group" style="margin-top:0;">
+                                    <label>Token</label>
+                                    <input type="text" id="authBearerToken" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI..." style="background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); padding:8px; border-radius:var(--radius-sm); width:100%; max-width: 400px; outline: none;">
+                                </div>
+                            </div>
+                            
+                            <div id="auth-none-ui" style="color:var(--text-muted); font-size: 0.85rem;">
+                                This request does not use any authorization.
                             </div>
                         </div>
                         <!-- Body Tab -->
@@ -236,6 +267,6 @@
         <button id="cancelExtractBtn" class="btn-icon"><i class="fas fa-times"></i></button>
     </div>
 
-    <script src="{{ url_for('static', filename='js/app.js', v=2) }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js', v=3) }}"></script>
 </body>
 </html>
