@@ -1,4 +1,4 @@
-:root {
+﻿:root {
     --bg-dark: #0f172a;
     --bg-panel: rgba(30, 41, 59, 0.7);
     --bg-input: #0f172a;
@@ -487,6 +487,13 @@ button {
     border-left: 1px solid var(--border);
     margin-left: 4px;
 }
-c a c h e   b u s t i n g . . .  
- c a c h e   b u s t i n g . . .  
- 
+
+/* Select / Dropdown dark theme support */
+select {
+    color-scheme: dark;
+}
+
+select option {
+    background: var(--bg-dark);
+    color: var(--text-main);
+}

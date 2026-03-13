@@ -40,10 +40,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const confirmSaveBtn = document.getElementById('confirmSaveBtn');
     const collectionList = document.getElementById('collectionList');
     
-    // Active Flow
-    const activeFlowSelect = document.getElementById('activeFlowSelect');
-    const newFlowBtn = document.getElementById('newFlowBtn');
-    const saveFlowLabel = document.getElementById('saveFlowLabel');
+    // Active Flow Group
+    const activeGroupSelect = document.getElementById('activeGroupSelect');
+    const newGroupBtn = document.getElementById('newGroupBtn');
+    const saveGroupLabel = document.getElementById('saveGroupLabel');
     
     const flowRunnerModal = document.getElementById('flowRunnerModal');
     const flowRunnerTitle = document.getElementById('flowRunnerTitle');
@@ -70,6 +70,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let savedCollections = [];
     let savedEnvironment = {};
+    let savedGroups = ['Default'];
 
     // --- Auth DOM Elements ---
     const authRadios = document.querySelectorAll('input[name="authType"]');
@@ -622,7 +623,7 @@ document.addEventListener('DOMContentLoaded', () => {
             await fetch('/api/collections', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ collections: savedCollections, environment: savedEnvironment })
+                body: JSON.stringify({ collections: savedCollections, environment: savedEnvironment, groups: savedGroups })
             });
         } catch(e) { console.error("Failed to save data to server"); }
     }
@@ -633,6 +634,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await res.json();
             savedCollections = data.collections || [];
             savedEnvironment = data.environment || {};
+            savedGroups = data.groups || ['Default'];
+            if (!savedGroups.includes('Default')) savedGroups.unshift('Default');
             renderCollectionsList();
         } catch (e) {
             console.error("Failed to load collections");
@@ -641,43 +644,52 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function renderCollectionsList() {
         collectionList.innerHTML = '';
-        const flows = {};
         
+        // Assign default flowGroup if missing
         savedCollections.forEach(req => {
+            if (!req.flowGroup) req.flowGroup = 'Default';
+        });
+
+        // Collect all unique groups (merge savedGroups + groups found in data)
+        const allGroups = new Set(savedGroups);
+        savedCollections.forEach(r => allGroups.add(r.flowGroup));
+        allGroups.add('Default');
+
+        // Update Group Dropdown
+        const currentGroup = activeGroupSelect.value;
+        activeGroupSelect.innerHTML = '';
+        Array.from(allGroups).sort().forEach(g => {
+            const opt = document.createElement('option');
+            opt.value = g;
+            opt.textContent = g;
+            activeGroupSelect.appendChild(opt);
+        });
+        if (allGroups.has(currentGroup)) {
+            activeGroupSelect.value = currentGroup;
+        } else {
+            activeGroupSelect.value = 'Default';
+        }
+
+        const selectedGroup = activeGroupSelect.value;
+
+        // Group by flow (collection) within selected group
+        const flows = {};
+        savedCollections.forEach(req => {
+            if (req.flowGroup !== selectedGroup) return;
             const flowName = req.collection || 'Default';
             if (!flows[flowName]) flows[flowName] = [];
             flows[flowName].push(req);
         });
 
-        // Update Active Flow Dropdown
-        const currentSelectedFlow = activeFlowSelect.value;
-        activeFlowSelect.innerHTML = '';
-        Object.keys(flows).forEach(f => {
-            const opt = document.createElement('option');
-            opt.value = f;
-            opt.textContent = f;
-            activeFlowSelect.appendChild(opt);
-        });
-        if (flows[currentSelectedFlow]) {
-            activeFlowSelect.value = currentSelectedFlow;
-        } else if (Object.keys(flows).length > 0) {
-            activeFlowSelect.value = Object.keys(flows)[0];
-        } else {
-            const defaultOpt = document.createElement('option');
-            defaultOpt.value = 'Default';
-            defaultOpt.textContent = 'Default';
-            activeFlowSelect.appendChild(defaultOpt);
-            activeFlowSelect.value = 'Default';
-        }
-
         Object.keys(flows).forEach(flowName => {
-            const flowGroup = document.createElement('div');
-            flowGroup.className = 'flow-group';
+            const flowSection = document.createElement('div');
+            flowSection.className = 'flow-group';
             
             const header = document.createElement('div');
             header.className = 'flow-group-header';
+            header.style.cursor = 'pointer';
             header.innerHTML = `
-                <span><i class="fas fa-layer-group"></i> ${escapeHTML(flowName)}</span>
+                <span><i class="fas fa-chevron-right flow-chevron" style="margin-right: 6px; transition: transform 0.2s; font-size: 0.7rem;"></i><i class="fas fa-layer-group"></i> ${escapeHTML(flowName)}</span>
                 <button class="btn-icon run-flow-btn" title="Run Flow"><i class="fas fa-play"></i></button>
             `;
             
@@ -688,6 +700,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const reqsContainer = document.createElement('div');
             reqsContainer.className = 'flow-requests';
+            reqsContainer.style.display = 'none'; // collapsed by default
+
+            const chevron = header.querySelector('.flow-chevron');
+            header.addEventListener('click', (e) => {
+                if (e.target.closest('.run-flow-btn')) return;
+                const isOpen = reqsContainer.style.display !== 'none';
+                reqsContainer.style.display = isOpen ? 'none' : 'block';
+                chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
+            });
 
             flows[flowName].forEach(req => {
                 const div = document.createElement('div');
@@ -768,7 +789,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const updatedCollections = [];
                         let flowIdx = 0;
                         savedCollections.forEach(r => {
-                            if ((r.collection || 'Default') === flowName) {
+                            if ((r.collection || 'Default') === flowName && r.flowGroup === selectedGroup) {
                                 updatedCollections.push(newOrder[flowIdx]);
                                 flowIdx++;
                             } else {
@@ -777,18 +798,23 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                         savedCollections = updatedCollections;
                         await saveServerData();
-                        renderCollectionsList(); // Re-render to update the runFlow bindings with new order
+                        renderCollectionsList();
                     }
                 });
 
                 reqsContainer.appendChild(div);
             });
 
-            flowGroup.appendChild(header);
-            flowGroup.appendChild(reqsContainer);
-            collectionList.appendChild(flowGroup);
+            flowSection.appendChild(header);
+            flowSection.appendChild(reqsContainer);
+            collectionList.appendChild(flowSection);
         });
     }
+
+    // Re-render when group changes
+    activeGroupSelect.addEventListener('change', () => {
+        renderCollectionsList();
+    });
 
     // --- Flow Runner Engine ---
     if(closeFlowRunnerBtn) closeFlowRunnerBtn.addEventListener('click', () => flowRunnerModal.classList.add('hidden'));
@@ -1122,22 +1148,16 @@ ${sBody ? `<div style="color:#34d399; font-weight:bold; margin-bottom:4px;">RES 
         }
     }
 
-    newFlowBtn.addEventListener('click', () => {
-        const name = prompt("Enter new flow name:");
+    newGroupBtn.addEventListener('click', async () => {
+        const name = prompt("Enter new group name:");
         if (name && name.trim()) {
-            const flowName = name.trim();
-            // add to dropdown if doesn't exist
-            let exists = false;
-            Array.from(activeFlowSelect.options).forEach(opt => {
-                if (opt.value === flowName) exists = true;
-            });
-            if (!exists) {
-                const opt = document.createElement('option');
-                opt.value = flowName;
-                opt.textContent = flowName;
-                activeFlowSelect.appendChild(opt);
+            const groupName = name.trim();
+            if (!savedGroups.includes(groupName)) {
+                savedGroups.push(groupName);
+                await saveServerData();
             }
-            activeFlowSelect.value = flowName;
+            activeGroupSelect.value = groupName;
+            renderCollectionsList();
         }
     });
 
@@ -1178,14 +1198,55 @@ ${sBody ? `<div style="color:#34d399; font-weight:bold; margin-bottom:4px;">RES 
     });
 
     saveBtn.addEventListener('click', () => {
-        saveFlowLabel.textContent = `Adding to Flow: ${activeFlowSelect.value}`;
+        saveGroupLabel.textContent = `Group: ${activeGroupSelect.value}`;
+        
+        // Populate flow dropdown with existing flows for the selected group
+        const selectedGroup = activeGroupSelect.value;
+        const flowSelect = document.getElementById('saveFlowName');
+        flowSelect.innerHTML = '';
+        const existingFlows = new Set();
+        savedCollections.forEach(r => {
+            if ((r.flowGroup || 'Default') === selectedGroup) {
+                existingFlows.add(r.collection || 'Default');
+            }
+        });
+        if (existingFlows.size === 0) existingFlows.add('Default');
+        existingFlows.forEach(f => {
+            const opt = document.createElement('option');
+            opt.value = f;
+            opt.textContent = f;
+            flowSelect.appendChild(opt);
+        });
+        
         saveModal.classList.remove('hidden');
     });
     cancelSaveBtn.addEventListener('click', () => saveModal.classList.add('hidden'));
+
+    // New Flow button inside save modal
+    document.getElementById('newFlowInModalBtn').addEventListener('click', () => {
+        const name = prompt("Enter new flow name:");
+        if (name && name.trim()) {
+            const flowSelect = document.getElementById('saveFlowName');
+            const flowName = name.trim();
+            // Check if already exists
+            let exists = false;
+            Array.from(flowSelect.options).forEach(opt => {
+                if (opt.value === flowName) exists = true;
+            });
+            if (!exists) {
+                const opt = document.createElement('option');
+                opt.value = flowName;
+                opt.textContent = flowName;
+                flowSelect.appendChild(opt);
+            }
+            flowSelect.value = flowName;
+        }
+    });
     
     confirmSaveBtn.addEventListener('click', async () => {
         const name = document.getElementById('saveReqName').value.trim();
-        const collection = activeFlowSelect.value;
+        const flowName = document.getElementById('saveFlowName').value || 'Default';
+        const flowGroup = activeGroupSelect.value;
         
         if (!name) return alert("Name is required");
 
@@ -1196,7 +1257,8 @@ ${sBody ? `<div style="color:#34d399; font-weight:bold; margin-bottom:4px;">RES 
             dataToSave = {
                 id: Date.now().toString(),
                 name,
-                collection,
+                collection: flowName,
+                flowGroup,
                 type: 'request',
                 url: reqUrl.value.trim(),
                 method: reqMethod.value,
@@ -1221,7 +1283,8 @@ ${sBody ? `<div style="color:#34d399; font-weight:bold; margin-bottom:4px;">RES 
             dataToSave = {
                 id: Date.now().toString(),
                 name,
-                collection,
+                collection: flowName,
+                flowGroup,
                 type: type,
                 actionData
             };
