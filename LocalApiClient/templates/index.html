@@ -115,12 +115,20 @@
                         </div>
                         <!-- Body Tab -->
                         <div id="tab-body" class="tab-content">
-                            <div class="body-editor-controls">
-                                <label><input type="radio" name="bodyType" value="none" checked> None</label>
-                                <label><input type="radio" name="bodyType" value="json"> JSON</label>
-                                <label><input type="radio" name="bodyType" value="text"> Text</label>
+                            <div class="body-editor-controls" style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                                <div style="display: flex; gap: 12px; align-items: center;">
+                                    <label><input type="radio" name="bodyType" value="none" checked> None</label>
+                                    <label><input type="radio" name="bodyType" value="json"> JSON</label>
+                                    <label><input type="radio" name="bodyType" value="xml"> XML</label>
+                                    <label><input type="radio" name="bodyType" value="text"> Text</label>
+                                </div>
+                                <div style="flex-grow: 1;"></div>
+                                <button id="validateBodyBtn" class="btn-outline btn-small hidden" title="Validate JSON/XML"><i class="fas fa-check"></i> Validate</button>
                             </div>
-                            <textarea id="bodyEditor" class="code-editor" placeholder="Enter request body here..." disabled></textarea>
+                            <div class="code-editor-container" style="position: relative; display: flex; height: 300px; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; background: #0f172a;">
+                                <div id="bodyEditorLines" class="line-numbers" style="padding: 12px 8px; font-family: 'Consolas', monospace; font-size: 0.9rem; color: #475569; text-align: right; user-select: none; background: rgba(0,0,0,0.2); border-right: 1px solid var(--border); overflow: hidden; width: 40px; box-sizing: border-box;">1</div>
+                                <textarea id="bodyEditor" class="code-editor" placeholder="Enter request body here..." disabled style="flex: 1; height: 100%; border: none; border-radius: 0; outline: none; margin: 0; padding: 12px; resize: none;"></textarea>
+                            </div>
                         </div>
                         <!-- Extract Tab -->
                         <div id="tab-vars" class="tab-content">
@@ -186,7 +194,10 @@
                         <div id="ui-script" class="action-ui hidden">
                             <h3 style="margin-bottom: 8px;">📜 Script</h3>
                             <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 16px;">Execute Javascript. The <code>env</code> object is available for reading/modifying variables.</p>
-                            <textarea id="scriptInput" class="code-editor" style="height: 300px;" placeholder="env['new_var'] = env['old_var'] + '_suffix';"></textarea>
+                            <div class="code-editor-container" style="position: relative; display: flex; height: 300px; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; background: #0f172a;">
+                                <div id="scriptInputLines" class="line-numbers" style="padding: 12px 8px; font-family: 'Consolas', monospace; font-size: 0.9rem; color: #475569; text-align: right; user-select: none; background: rgba(0,0,0,0.2); border-right: 1px solid var(--border); overflow: hidden; width: 40px; box-sizing: border-box;">1</div>
+                                <textarea id="scriptInput" class="code-editor" placeholder="env['new_var'] = env['old_var'] + '_suffix';" style="flex: 1; height: 100%; border: none; border-radius: 0; outline: none; margin: 0; padding: 12px; resize: none;"></textarea>
+                            </div>
                         </div>
 
                         <!-- Conditional -->
@@ -238,7 +249,10 @@
         <div class="modal-content" style="width: 500px;">
             <h3>Environment Variables</h3>
             <p style="font-size: 0.8rem; color: #94a3b8; margin-bottom: 12px;">Use {{var_name}} in URL, Headers, and Body.</p>
-            <textarea id="envEditor" class="code-editor" style="height: 200px; margin-bottom: 16px;"></textarea>
+            <div class="code-editor-container" style="position: relative; display: flex; height: 200px; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; background: #0f172a; margin-bottom: 16px;">
+                <div id="envEditorLines" class="line-numbers" style="padding: 12px 8px; font-family: 'Consolas', monospace; font-size: 0.9rem; color: #475569; text-align: right; user-select: none; background: rgba(0,0,0,0.2); border-right: 1px solid var(--border); overflow: hidden; width: 40px; box-sizing: border-box;">1</div>
+                <textarea id="envEditor" class="code-editor" style="flex: 1; height: 100%; border: none; border-radius: 0; outline: none; margin: 0; padding: 12px; resize: none;"></textarea>
+            </div>
             <div class="modal-actions">
                 <button id="closeEnvBtn" class="btn-primary">Done</button>
             </div>
@@ -267,6 +281,6 @@
         <button id="cancelExtractBtn" class="btn-icon"><i class="fas fa-times"></i></button>
     </div>
 
-    <script src="{{ url_for('static', filename='js/app.js', v=3) }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js', v=8) }}"></script>
 </body>
 </html>

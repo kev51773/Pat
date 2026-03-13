@@ -62,6 +62,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const envEditor = document.getElementById('envEditor');
     const closeEnvBtn = document.getElementById('closeEnvBtn');
     
+    // Line Numbers Elements
+    const bodyEditorLines = document.getElementById('bodyEditorLines');
+    const scriptInputLines = document.getElementById('scriptInputLines');
+    const envEditorLines = document.getElementById('envEditorLines');
+    const scriptInput = document.getElementById('scriptInput');
+
     let savedCollections = [];
     let savedEnvironment = {};
 
@@ -85,11 +91,47 @@ document.addEventListener('DOMContentLoaded', () => {
                 // Add active to current
                 tab.classList.add('active');
                 document.getElementById(`tab-${tab.dataset.target}`).classList.add('active');
+
+                // Update line numbers if necessary when tabs change
+                if (tab.dataset.target === 'body' && !bodyEditor.disabled) {
+                    updateLineNumbers(bodyEditor, bodyEditorLines);
+                }
             });
         });
     }
     setupTabs(reqTabs);
     setupTabs(resTabs);
+
+    // --- Line Numbers Sync Logic ---
+    function updateLineNumbers(textarea, lineDiv) {
+        if (!textarea || !lineDiv) return;
+        const lines = textarea.value.split('\n').length;
+        if (lineDiv.dataset.lineCount !== String(lines)) {
+            lineDiv.innerHTML = Array(lines).fill(0).map((_, i) => i + 1).join('<br>');
+            lineDiv.dataset.lineCount = lines;
+        }
+    }
+
+    function syncScroll(textarea, lineDiv) {
+        if (!textarea || !lineDiv) return;
+        lineDiv.scrollTop = textarea.scrollTop;
+    }
+
+    function attachLineNumberEvents(textarea, lineDiv) {
+        if (!textarea || !lineDiv) return;
+        textarea.addEventListener('input', () => {
+            updateLineNumbers(textarea, lineDiv);
+        });
+        textarea.addEventListener('scroll', () => {
+            syncScroll(textarea, lineDiv);
+        });
+        // Initial setup
+        updateLineNumbers(textarea, lineDiv);
+    }
+
+    attachLineNumberEvents(bodyEditor, bodyEditorLines);
+    attachLineNumberEvents(scriptInput, scriptInputLines);
+    attachLineNumberEvents(envEditor, envEditorLines);
 
     // --- Dynamic styling for Http Method & action toggling ---
     stepType.addEventListener('change', () => {
@@ -264,19 +306,92 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Body Editor Logic ---
+    const validateBodyBtn = document.getElementById('validateBodyBtn');
+
     bodyRadios.forEach(radio => {
         radio.addEventListener('change', (e) => {
             if (e.target.value === 'none') {
                 bodyEditor.disabled = true;
                 bodyEditor.value = '';
+                if(validateBodyBtn) validateBodyBtn.classList.add('hidden');
             } else {
                 bodyEditor.disabled = false;
                 if (e.target.value === 'json' && !bodyEditor.value) {
                     bodyEditor.value = '{\n  \n}';
+                } else if (e.target.value === 'xml' && !bodyEditor.value) {
+                    bodyEditor.value = '<?xml version="1.0" encoding="UTF-8"?>\n<root>\n  \n</root>';
                 }
+                
+                if (validateBodyBtn) {
+                    if (e.target.value === 'json' || e.target.value === 'xml') {
+                        validateBodyBtn.classList.remove('hidden');
+                    } else {
+                        validateBodyBtn.classList.add('hidden');
+                    }
+                }
+                updateLineNumbers(bodyEditor, bodyEditorLines);
             }
         });
     });
+
+    if (validateBodyBtn) {
+        validateBodyBtn.addEventListener('click', () => {
+            const bodyType = document.querySelector('input[name="bodyType"]:checked').value;
+            const content = bodyEditor.value.trim();
+            if (!content) {
+                alert("Body is empty.");
+                return;
+            }
+
+            if (bodyType === 'json') {
+                try {
+                    JSON.parse(content);
+                    alert("✅ Valid JSON!");
+                } catch (e) {
+                    alert("❌ Invalid JSON:\n" + e.message);
+                }
+            } else if (bodyType === 'xml') {
+                // First, check with DOMParser for structural errors
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(content, "application/xml");
+                const parserError = doc.querySelector("parsererror");
+                if (parserError) {
+                    const errorDiv = parserError.querySelector("div");
+                    const errorMessage = errorDiv ? errorDiv.textContent : parserError.textContent;
+                    alert("❌ Invalid XML:\n" + errorMessage);
+                    return;
+                }
+
+                // Stricter checks: look for bare < or > in text content
+                // Strip all valid XML constructs, then check for leftover angle brackets
+                let stripped = content;
+                // Remove XML declarations, processing instructions, CDATA, comments
+                stripped = stripped.replace(/<\?[\s\S]*?\?>/g, '');
+                stripped = stripped.replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, '');
+                stripped = stripped.replace(/<!--[\s\S]*?-->/g, '');
+                // Remove all well-formed tags (self-closing, opening, closing)
+                stripped = stripped.replace(/<[^>]+>/g, '');
+
+                if (stripped.includes('>') || stripped.includes('<')) {
+                    const lines = content.split('\n');
+                    let errorLines = [];
+                    for (let i = 0; i < lines.length; i++) {
+                        let line = lines[i];
+                        line = line.replace(/<\?[\s\S]*?\?>/g, '');
+                        line = line.replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, '');
+                        line = line.replace(/<!--[\s\S]*?-->/g, '');
+                        line = line.replace(/<[^>]+>/g, '');
+                        if (line.includes('>') || line.includes('<')) {
+                            errorLines.push(`  Line ${i + 1}: ${lines[i].trim()}`);
+                        }
+                    }
+                    alert("⚠️ XML parsed but contains suspicious bare angle brackets:\n" + errorLines.join('\n'));
+                } else {
+                    alert("✅ Valid XML!");
+                }
+            }
+        });
+    }
 
     // --- Send Request Logic ---
     sendBtn.addEventListener('click', async () => {
@@ -312,10 +427,17 @@ document.addEventListener('DOMContentLoaded', () => {
                         requestData.headers['Content-Type'] = 'application/json';
                     }
                     requestData.body = JSON.parse(await interpolateStr(bodyEditor.value));
+                } else if (bodyType === 'xml') {
+                    // Inject xml header automatically if missing
+                    if(!requestData.headers['Content-Type']){
+                        requestData.headers['Content-Type'] = 'application/xml';
+                    }
+                    requestData.body = await interpolateStr(bodyEditor.value);
                 } else {
                     requestData.body = await interpolateStr(bodyEditor.value);
                 }
             }
+
         } catch (e) {
             if (e.message.startsWith('USER_ABORT')) return;
             alert('Error during interpolation/parsing:\n' + e.message);
@@ -365,6 +487,8 @@ document.addEventListener('DOMContentLoaded', () => {
             responseBody.textContent = `Error: ${data.error}`;
         } else if (data.is_json) {
             responseBody.innerHTML = generateJSONHTML(data.body);
+        } else if (data.is_xml) {
+            responseBody.innerHTML = generateXMLHTML(data.body);
         } else {
             responseBody.textContent = data.body;
         }
@@ -435,6 +559,36 @@ document.addEventListener('DOMContentLoaded', () => {
             return html;
         }
         return '';
+    }
+
+    function formatXML(xml) {
+        let formatted = '';
+        let pad = 0;
+        xml = xml.replace(/(>)(<)(\/*)/g, '$1\r\n$2$3');
+        const lines = xml.split('\r\n');
+        lines.forEach((line) => {
+            let indent = 0;
+            if (line.match(/.+<\/\w[^>]*>$/)) {
+                indent = 0;
+            } else if (line.match(/^<\/\w/)) {
+                if (pad !== 0) { pad -= 1; }
+            } else if (line.match(/^<\w[^>]*[^\/]>.*$/)) {
+                indent = 1;
+            } else {
+                indent = 0;
+            }
+            formatted += '  '.repeat(pad) + line + '\n';
+            pad += indent;
+        });
+        return formatted;
+    }
+
+    function generateXMLHTML(xmlString) {
+        const formatted = formatXML(xmlString);
+        let colored = escapeHTML(formatted);
+        colored = colored.replace(/&lt;([/?]?[a-zA-Z0-9_:-]+)/g, '&lt;<span style="color: #60a5fa;">$1</span>');
+        colored = colored.replace(/([a-zA-Z0-9_:-]+)=(&quot;[^&]*&quot;)/g, '<span style="color: #34d399;">$1</span>=<span style="color: #fbbf24;">$2</span>');
+        return colored;
     }
 
     // Visual Extractor Interactivity
@@ -836,6 +990,9 @@ ${sBody ? `<div style="color:#34d399; font-weight:bold; margin-bottom:4px;">RES 
                     if (typeof req.body === 'object') {
                         if (!requestData.headers['Content-Type']) requestData.headers['Content-Type'] = 'application/json';
                         requestData.body = JSON.parse(await interpolateStr(JSON.stringify(req.body)));
+                    } else if (req.bodyType === 'xml' || (typeof req.body === 'string' && req.body.trim().startsWith('<'))) {
+                        if (!requestData.headers['Content-Type']) requestData.headers['Content-Type'] = 'application/xml';
+                        requestData.body = await interpolateStr(req.body);
                     } else {
                         requestData.body = await interpolateStr(req.body);
                     }
@@ -912,6 +1069,7 @@ ${sBody ? `<div style="color:#34d399; font-weight:bold; margin-bottom:4px;">RES 
                 document.getElementById('delayMsInput').value = req.actionData.ms || '';
             } else if (req.type === 'script') {
                 document.getElementById('scriptInput').value = req.actionData.script || '';
+                updateLineNumbers(scriptInput, scriptInputLines);
             } else if (req.type === 'conditional') {
                 document.getElementById('condVar').value = req.actionData.var || '';
                 document.getElementById('condOp').value = req.actionData.op || '==';
@@ -944,7 +1102,13 @@ ${sBody ? `<div style="color:#34d399; font-weight:bold; margin-bottom:4px;">RES 
             // Load Body
             if (req.body) {
                 const isObj = typeof req.body === 'object';
-                document.querySelector(`input[name="bodyType"][value="${isObj ? 'json' : 'text'}"]`).checked = true;
+                let bodyTypeStr = 'text';
+                if (isObj) {
+                    bodyTypeStr = 'json';
+                } else if (req.bodyType === 'xml' || (typeof req.body === 'string' && req.body.trim().startsWith('<'))) {
+                    bodyTypeStr = 'xml';
+                }
+                document.querySelector(`input[name="bodyType"][value="${bodyTypeStr}"]`).checked = true;
                 bodyEditor.disabled = false;
                 bodyEditor.value = isObj ? JSON.stringify(req.body, null, 2) : req.body;
             } else {
@@ -952,6 +1116,9 @@ ${sBody ? `<div style="color:#34d399; font-weight:bold; margin-bottom:4px;">RES 
                 bodyEditor.disabled = true;
                 bodyEditor.value = '';
             }
+            // Trigger change event to update validate button visibility & line numbers
+            const activeRadio = document.querySelector(`input[name="bodyType"]:checked`);
+            if (activeRadio) activeRadio.dispatchEvent(new Event('change'));
         }
     }
 
@@ -993,6 +1160,7 @@ ${sBody ? `<div style="color:#34d399; font-weight:bold; margin-bottom:4px;">RES 
         document.querySelector(`input[name="bodyType"][value="none"]`).checked = true;
         bodyEditor.disabled = true;
         bodyEditor.value = '';
+        updateLineNumbers(bodyEditor, bodyEditorLines);
 
         // Reset Response Viewer
         resStatus.textContent = 'Status: --';
@@ -1035,6 +1203,7 @@ ${sBody ? `<div style="color:#34d399; font-weight:bold; margin-bottom:4px;">RES 
                 headers: getHeaders(),
                 auth: getAuth(),
                 extractors: getExtractors(),
+                bodyType: document.querySelector('input[name="bodyType"]:checked').value,
                 body: document.querySelector('input[name="bodyType"]:checked').value === 'json' ? 
                       JSON.parse(bodyEditor.value || '{}') : 
                       (document.querySelector('input[name="bodyType"]:checked').value !== 'none' ? bodyEditor.value : null)
@@ -1067,6 +1236,7 @@ ${sBody ? `<div style="color:#34d399; font-weight:bold; margin-bottom:4px;">RES 
     // Environment Handlers
     envBtn.addEventListener('click', () => {
         envEditor.value = JSON.stringify(savedEnvironment, null, 2);
+        updateLineNumbers(envEditor, envEditorLines);
         envModal.classList.remove('hidden');
     });
     

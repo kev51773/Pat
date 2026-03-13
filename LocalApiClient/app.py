@@ -92,9 +92,15 @@ def execute_request():
         try:
             resp_data["body"] = response.json()
             resp_data["is_json"] = True
+            resp_data["is_xml"] = False
         except ValueError:
-            resp_data["body"] = response.text
+            text = response.text
+            resp_data["body"] = text
             resp_data["is_json"] = False
+            if text.strip().startswith('<') and text.strip().endswith('>'):
+                resp_data["is_xml"] = True
+            else:
+                resp_data["is_xml"] = False
 
         return jsonify(resp_data)
 
