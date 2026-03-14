@@ -34,6 +34,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Header Buttons
     const newGroupBtn = document.getElementById('newGroupBtn');
     const newFlowBtn = document.getElementById('newFlowBtn');
+    const exitBtn = document.getElementById('exitBtn');
 
     // Save Modal
     const saveModal = document.getElementById('saveModal');
@@ -1303,8 +1304,9 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
             flows[flowName].forEach(req => {
+                const isAction = req.type && req.type !== 'request';
                 const div = document.createElement('div');
-                div.className = `saved-request-item ${req.id === activeRequestId ? 'active-request' : ''}`;
+                div.className = `saved-request-item ${req.id === activeRequestId ? 'active-request' : ''} ${isAction ? 'action-item' : ''}`;
                 div.draggable = true;
                 div.dataset.flow = flowName;
                 div.reqData = req;
@@ -1838,4 +1840,34 @@ ${sBody ? `<div style="color:#34d399; font-weight:bold; margin-bottom:4px;">RES 
 
     // Init
     loadCollections();
+
+    if (exitBtn) {
+        exitBtn.addEventListener('click', async () => {
+            if (confirm("Are you sure you want to exit? This will shut down the server and close this window.")) {
+                try {
+                    // Inform the user immediately
+                    document.body.innerHTML = `
+                        <div style="height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #0f172a; color: #f8fafc; font-family: 'Inter', sans-serif;">
+                            <i class="fas fa-power-off" style="font-size: 3rem; color: #f87171; margin-bottom: 24px;"></i>
+                            <h2 style="margin: 0; font-weight: 600;">Shutting down...</h2>
+                            <p style="color: #94a3b8; margin-top: 12px;">The server is stopping. You can now safely close this tab.</p>
+                        </div>
+                    `;
+                    
+                    // Send exit request to backend
+                    await fetch('/api/exit', { method: 'POST' });
+                    
+                    // Try to close the window
+                    window.close();
+                    
+                    // Fallback for browsers that prevent script-initiated close
+                    setTimeout(() => {
+                        window.location.href = "about:blank";
+                    }, 500);
+                } catch (error) {
+                    console.error("Exit failed:", error);
+                }
+            }
+        });
+    }
 });

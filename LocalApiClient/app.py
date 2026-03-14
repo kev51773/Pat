@@ -121,6 +121,17 @@ def save_collections():
         return jsonify({"message": "Data saved successfully"})
     return jsonify({"error": "Failed to save data"}), 500
 
+@app.route('/api/exit', methods=['POST'])
+def exit_app():
+    """Shutdown the server and exit the process."""
+    def shutdown():
+        time.sleep(0.5) # Allow response to reach client
+        app.logger.info("Application exit requested via UI.")
+        os._exit(0)
+    
+    threading.Thread(target=shutdown).start()
+    return jsonify({"message": "Shutting down..."})
+
 def run_server():
     # Disable flask output so it doesn't spam the console when run in background
     log = logging.getLogger('werkzeug')

@@ -165,6 +165,14 @@ button {
     box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
 }
 
+.saved-request-item.action-item {
+    background: rgba(139, 92, 246, 0.08);
+}
+
+.saved-request-item.action-item:hover {
+    background: rgba(139, 92, 246, 0.15);
+}
+
 /* Groups Styling */
 .group-item {
     padding: 8px 12px;
@@ -239,6 +247,12 @@ button {
 .context-menu-item.delete:hover {
     background: #ef4444;
     color: white;
+}
+
+#exitBtn:hover {
+    background: rgba(248, 113, 113, 0.15) !important;
+    border-color: rgba(248, 113, 113, 0.3) !important;
+    transform: translateY(-1px);
 }
 
 .saved-request-item.dragging {
