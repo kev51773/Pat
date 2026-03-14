@@ -689,8 +689,8 @@ document.addEventListener('DOMContentLoaded', () => {
             header.className = 'flow-group-header';
             header.style.cursor = 'pointer';
             header.innerHTML = `
-                <span><i class="fas fa-chevron-right flow-chevron" style="margin-right: 6px; transition: transform 0.2s; font-size: 0.7rem;"></i><i class="fas fa-layer-group"></i> ${escapeHTML(flowName)}</span>
-                <button class="btn-icon run-flow-btn" title="Run Flow"><i class="fas fa-play"></i></button>
+                <span><i class="fas fa-chevron-right flow-chevron" style="margin-right: 10px; transition: transform 0.2s; font-size: 0.7rem;"></i><i class="fas fa-layer-group" style="margin-right: 6px;"></i>${escapeHTML(flowName)}</span>
+                <button class="btn-icon run-flow-btn" title="Run Flow" style="font-size: 0.7rem; color: #34d399; background: rgba(16, 185, 129, 0.15); padding: 4px 8px; border-radius: 4px; border: 1px solid rgba(52, 211, 153, 0.25);"><i class="fas fa-play"></i></button>
             `;
             
             header.querySelector('.run-flow-btn').addEventListener('click', (e) => {
