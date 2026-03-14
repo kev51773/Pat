@@ -32,18 +32,55 @@ document.addEventListener('DOMContentLoaded', () => {
     const resSize = document.getElementById('resSize');
     
     // Header Buttons
-    const newRequestBtn = document.getElementById('newRequestBtn');
+    const newGroupBtn = document.getElementById('newGroupBtn');
+    const newFlowBtn = document.getElementById('newFlowBtn');
 
     // Save Modal
     const saveModal = document.getElementById('saveModal');
     const cancelSaveBtn = document.getElementById('cancelSaveBtn');
     const confirmSaveBtn = document.getElementById('confirmSaveBtn');
     const collectionList = document.getElementById('collectionList');
-    
-    // Active Flow Group
-    const activeGroupSelect = document.getElementById('activeGroupSelect');
-    const newGroupBtn = document.getElementById('newGroupBtn');
-    const saveGroupLabel = document.getElementById('saveGroupLabel');
+    const groupsList = document.getElementById('groupsList');
+    const contextMenu = document.getElementById('contextMenu');
+    const saveGroupName = document.getElementById('saveGroupName');
+    const saveFlowName = document.getElementById('saveFlowName');
+
+    // Input Modal
+    const inputModal = document.getElementById('inputModal');
+    const inputModalTitle = document.getElementById('inputModalTitle');
+    const inputModalField = document.getElementById('inputModalField');
+    const inputModalError = document.getElementById('inputModalError');
+    const cancelInputBtn = document.getElementById('cancelInputBtn');
+    const confirmInputBtn = document.getElementById('confirmInputBtn');
+    let currentInputCallback = null;
+
+    // Action Modal
+    const actionModal = document.getElementById('actionModal');
+    const actionModalTitle = document.getElementById('actionModalTitle');
+    const actionGroupName = document.getElementById('actionGroupName');
+    const actionFlowName = document.getElementById('actionFlowName');
+    const actionGroupNameContainer = document.getElementById('actionGroupNameContainer');
+    const actionFlowNameContainer = document.getElementById('actionFlowNameContainer');
+    const cancelActionBtn = document.getElementById('cancelActionBtn');
+    const confirmActionBtn = document.getElementById('confirmActionBtn');
+    let currentActionCallback = null;
+
+    const envBtn = document.getElementById('envBtn');
+    const envModal = document.getElementById('envModal');
+    const envEditor = document.getElementById('envEditor');
+    const closeEnvBtn = document.getElementById('closeEnvBtn');
+
+    // Groups Toggle
+    const groupsHeader = document.getElementById('groupsHeader');
+    const groupsChevron = document.querySelector('.groups-chevron');
+    if (groupsHeader && groupsList && groupsChevron) {
+        groupsHeader.addEventListener('click', (e) => {
+            if (e.target.closest('#newGroupBtn')) return;
+            const isHidden = groupsList.style.display === 'none';
+            groupsList.style.display = isHidden ? 'flex' : 'none';
+            groupsChevron.style.transform = isHidden ? 'rotate(90deg)' : 'rotate(0deg)';
+        });
+    }
     
     const flowRunnerModal = document.getElementById('flowRunnerModal');
     const flowRunnerTitle = document.getElementById('flowRunnerTitle');
@@ -57,11 +94,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const cancelExtractBtn = document.getElementById('cancelExtractBtn');
     let currentExtractPath = '';
 
-    const envBtn = document.getElementById('envBtn');
-    const envModal = document.getElementById('envModal');
-    const envEditor = document.getElementById('envEditor');
-    const closeEnvBtn = document.getElementById('closeEnvBtn');
-    
     // Line Numbers Elements
     const bodyEditorLines = document.getElementById('bodyEditorLines');
     const scriptInputLines = document.getElementById('scriptInputLines');
@@ -71,6 +103,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let savedCollections = [];
     let savedEnvironment = {};
     let savedGroups = ['Default'];
+    let currentGroup = 'Default';
+    let activeRequestId = null;
+    let expandedFlows = new Set(); // Track expanded flows by "groupName:flowName"
 
     // --- Auth DOM Elements ---
     const authRadios = document.querySelectorAll('input[name="authType"]');
@@ -617,6 +652,446 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
+    // --- Context Menu Logic ---
+    function hideContextMenu() {
+        contextMenu.classList.add('hidden');
+    }
+
+    document.addEventListener('mousedown', (e) => {
+        if (!contextMenu.contains(e.target)) hideContextMenu();
+    });
+
+    function showContextMenu(e, type, data) {
+        e.preventDefault();
+        contextMenu.innerHTML = '';
+        
+        const items = [];
+        if (type === 'group') {
+            items.push({ label: 'Rename Group', icon: 'edit', action: () => renameGroup(data) });
+            items.push({ label: 'Copy Group', icon: 'copy', action: () => copyGroup(data) });
+            items.push({ label: 'Delete Group', icon: 'trash', class: 'delete', action: () => deleteGroup(data) });
+        } else if (type === 'flow') {
+            items.push({ label: 'Rename Flow', icon: 'edit', action: () => renameFlow(data.name, data.group) });
+            items.push({ label: 'Copy Flow', icon: 'copy', action: () => copyFlow(data.name, data.group) });
+            items.push({ label: 'Delete Flow', icon: 'trash', class: 'delete', action: () => deleteFlow(data.name, data.group) });
+            items.push({ label: 'Move to Group', icon: 'share-square', action: () => moveFlow(data.name, data.group) });
+        } else if (type === 'step') {
+            items.push({ label: 'Rename Step', icon: 'edit', action: () => renameStep(data) });
+            items.push({ label: 'Copy Step', icon: 'copy', action: () => copyStep(data) });
+            items.push({ label: 'Delete Step', icon: 'trash', class: 'delete', action: () => deleteStep(data) });
+            items.push({ label: 'Move to Flow', icon: 'share-square', action: () => moveStep(data) });
+        }
+
+        items.forEach(item => {
+            const div = document.createElement('div');
+            div.className = `context-menu-item ${item.class || ''}`;
+            div.innerHTML = `<i class="fas fa-${item.icon}"></i> ${item.label}`;
+            div.onclick = () => {
+                hideContextMenu();
+                item.action();
+            };
+            contextMenu.appendChild(div);
+        });
+
+        contextMenu.classList.remove('hidden');
+        
+        // Position menu
+        const menuWidth = 160;
+        const menuHeight = items.length * 36 + 8;
+        let x = e.pageX;
+        let y = e.pageY;
+
+        if (x + menuWidth > window.innerWidth) x -= menuWidth;
+        if (y + menuHeight > window.innerHeight) y -= menuHeight;
+
+        contextMenu.style.left = `${x}px`;
+        contextMenu.style.top = `${y}px`;
+    }
+
+    // --- Action Handlers ---
+    // --- Utilities ---
+    function getUniqueName(baseName, existingNames) {
+        if (!existingNames.includes(baseName)) return baseName;
+        let counter = 1;
+        while (existingNames.includes(`${baseName}-${counter}`)) {
+            counter++;
+        }
+        return `${baseName}-${counter}`;
+    }
+
+    function updateBreadcrumbs(step) {
+        const breadcrumbContent = document.getElementById('breadcrumbContent');
+        if (!breadcrumbContent) return;
+        if (!step) {
+            breadcrumbContent.innerHTML = 'Select a step from the sidebar...';
+            return;
+        }
+        breadcrumbContent.innerHTML = `
+            <span style="color: var(--text-main); font-weight: 500;">${escapeHTML(step.flowGroup || 'Default')}</span>
+            <i class="fas fa-chevron-right" style="font-size: 0.6rem; opacity: 0.4; margin: 0 4px;"></i>
+            <span style="color: var(--text-main); font-weight: 500;">${escapeHTML(step.collection || 'Default')}</span>
+            <i class="fas fa-chevron-right" style="font-size: 0.6rem; opacity: 0.4; margin: 0 4px;"></i>
+            <span style="color: var(--accent); font-weight: 600;">${escapeHTML(step.name)}</span>
+        `;
+    }
+
+    // --- Input Modal Logic ---
+    function openInputModal(title, initialValue, existingNames, onConfirm) {
+        inputModalTitle.textContent = title;
+        inputModalField.value = initialValue || '';
+        inputModalError.textContent = '';
+        confirmInputBtn.disabled = false;
+        
+        const validate = () => {
+            const val = inputModalField.value.trim();
+            const safeCharsRegex = /^[a-zA-Z0-9\s\-_.]+$/;
+            
+            if (!val) {
+                inputModalError.textContent = "Name cannot be empty.";
+                confirmInputBtn.disabled = true;
+                return false;
+            }
+            if (!safeCharsRegex.test(val)) {
+                inputModalError.textContent = "Only letters, numbers, spaces, and -_. are allowed.";
+                confirmInputBtn.disabled = true;
+                return false;
+            }
+            if (existingNames.includes(val) && val !== initialValue) {
+                inputModalError.textContent = "This name already exists.";
+                confirmInputBtn.disabled = true;
+                return false;
+            }
+            
+            inputModalError.textContent = "";
+            confirmInputBtn.disabled = false;
+            return true;
+        };
+
+        inputModalField.oninput = validate;
+        
+        currentInputCallback = () => {
+            if (validate()) {
+                onConfirm(inputModalField.value.trim());
+                inputModal.classList.add('hidden');
+            }
+        };
+
+        inputModal.classList.remove('hidden');
+        inputModalField.focus();
+        validate();
+    }
+
+    cancelInputBtn.onclick = () => inputModal.classList.add('hidden');
+    confirmInputBtn.onclick = () => { if (currentInputCallback) currentInputCallback(); };
+    inputModalField.onkeydown = (e) => { if (e.key === 'Enter') confirmInputBtn.click(); };
+
+    // --- Action Modal Logic ---
+    function openActionModal(title, showFlow, group, flow, onConfirm) {
+        actionModalTitle.textContent = title;
+        actionGroupName.innerHTML = '';
+        const allGroups = Array.from(new Set([...savedGroups, ...savedCollections.map(r => r.flowGroup || 'Default')]));
+        allGroups.sort().forEach(g => {
+            const opt = document.createElement('option');
+            opt.value = g; opt.textContent = g;
+            actionGroupName.appendChild(opt);
+        });
+        actionGroupName.value = group || currentGroup;
+
+        if (showFlow) {
+            actionFlowNameContainer.style.display = 'block';
+            const updateFlows = (g) => {
+                actionFlowName.innerHTML = '';
+                const flowsSet = new Set();
+                savedCollections.forEach(r => { if ((r.flowGroup || 'Default') === g) flowsSet.add(r.collection || 'Default'); });
+                if (flowsSet.size === 0) flowsSet.add('Default');
+                
+                const sortedFlows = Array.from(flowsSet).sort();
+                sortedFlows.forEach(f => {
+                    const opt = document.createElement('option');
+                    opt.value = f; opt.textContent = f;
+                    actionFlowName.appendChild(opt);
+                });
+
+                // If the original flow name exists in the new group, select it.
+                // Otherwise, default to the first flow in the list.
+                if (flow && flowsSet.has(flow)) {
+                    actionFlowName.value = flow;
+                } else if (sortedFlows.length > 0) {
+                    actionFlowName.value = sortedFlows[0];
+                }
+            };
+            actionGroupName.onchange = (e) => updateFlows(e.target.value);
+            updateFlows(actionGroupName.value);
+        } else {
+            actionFlowNameContainer.style.display = 'none';
+        }
+
+        currentActionCallback = () => {
+            const res = onConfirm(actionGroupName.value, showFlow ? actionFlowName.value : null);
+            if (res !== false) actionModal.classList.add('hidden');
+        };
+        actionModal.classList.remove('hidden');
+    }
+
+    cancelActionBtn.onclick = () => actionModal.classList.add('hidden');
+    confirmActionBtn.onclick = () => { if (currentActionCallback) currentActionCallback(); };
+
+    async function addNewStep(flowName, groupName) {
+        const existingNames = savedCollections
+            .filter(r => (r.flowGroup || 'Default') === groupName && (r.collection || 'Default') === flowName)
+            .map(r => r.name);
+        
+        const uniqueName = getUniqueName("New Step", existingNames);
+
+        const newStep = {
+            id: Date.now().toString(),
+            name: uniqueName,
+            collection: flowName,
+            flowGroup: groupName,
+            type: 'request',
+            url: "",
+            method: "GET",
+            headers: {},
+            auth: { type: 'none' },
+            extractors: {},
+            bodyType: 'none',
+            body: null
+        };
+        savedCollections.push(newStep);
+        expandedFlows.add(`${groupName}:${flowName}`);
+        await saveServerData();
+        renderCollectionsList();
+        loadRequestIntoUI(newStep);
+    }
+
+    async function renameGroup(oldName) {
+        openInputModal("Rename Group", oldName, savedGroups, async (name) => {
+            savedCollections.forEach(r => {
+                if ((r.flowGroup || 'Default') === oldName) r.flowGroup = name;
+            });
+            const idx = savedGroups.indexOf(oldName);
+            if (idx !== -1) savedGroups[idx] = name;
+            
+            if (currentGroup === oldName) currentGroup = name;
+            await saveServerData();
+            renderCollectionsList();
+            
+            const activeStep = savedCollections.find(r => r.id === activeRequestId);
+            if (activeStep && (activeStep.flowGroup || 'Default') === name) updateBreadcrumbs(activeStep);
+        });
+    }
+
+    async function copyGroup(oldName) {
+        const suggestedName = getUniqueName(oldName + " Copy", savedGroups);
+        openInputModal("Copy Group", suggestedName, savedGroups, async (name) => {
+            if (!savedGroups.includes(name)) savedGroups.push(name);
+            
+            const newSteps = [];
+            savedCollections.forEach(r => {
+                if ((r.flowGroup || 'Default') === oldName) {
+                    const clone = JSON.parse(JSON.stringify(r));
+                    clone.id = Date.now().toString() + Math.random();
+                    clone.flowGroup = name;
+                    newSteps.push(clone);
+                }
+            });
+            savedCollections.push(...newSteps);
+            await saveServerData();
+            renderCollectionsList();
+        });
+    }
+
+    async function deleteGroup(name) {
+        if (confirm(`Are you sure you want to delete the group "${name}" and all its flows?`)) {
+            savedCollections = savedCollections.filter(r => r.flowGroup !== name);
+            savedGroups = savedGroups.filter(g => g !== name);
+            if (currentGroup === name) {
+                currentGroup = savedGroups[0] || 'Default';
+                activeRequestId = null;
+                updateBreadcrumbs(null);
+            }
+            if (savedGroups.length === 0) savedGroups.push('Default');
+            await saveServerData();
+            renderCollectionsList();
+        }
+    }
+
+    async function renameFlow(oldName, group) {
+        const existingFlows = Array.from(new Set(savedCollections.filter(r => (r.flowGroup || 'Default') === group).map(r => r.collection || 'Default')));
+        openInputModal("Rename Flow", oldName, existingFlows, async (name) => {
+            savedCollections.forEach(r => {
+                if (r.collection === oldName && (r.flowGroup || 'Default') === group) r.collection = name;
+            });
+            await saveServerData();
+            renderCollectionsList();
+
+            const activeStep = savedCollections.find(r => r.id === activeRequestId);
+            if (activeStep && activeStep.collection === name && (activeStep.flowGroup || 'Default') === group) updateBreadcrumbs(activeStep);
+        });
+    }
+
+    async function copyFlow(oldName, group) {
+        openActionModal(`Copy Flow: ${oldName}`, false, group, null, async (targetGroup) => {
+            let newFlowName = oldName;
+            const existingFlowsInTarget = Array.from(new Set(savedCollections.filter(r => (r.flowGroup || 'Default') === targetGroup).map(r => r.collection || 'Default')));
+            
+            if (targetGroup === group || existingFlowsInTarget.includes(oldName)) {
+                const suggestedName = getUniqueName(oldName + " Copy", existingFlowsInTarget);
+                openInputModal("Copy Flow Name", suggestedName, existingFlowsInTarget, async (name) => {
+                    const newSteps = [];
+                    savedCollections.forEach(r => {
+                        if (r.collection === oldName && (r.flowGroup || 'Default') === group) {
+                            const clone = JSON.parse(JSON.stringify(r));
+                            clone.id = Date.now().toString() + Math.random();
+                            clone.collection = name;
+                            clone.flowGroup = targetGroup;
+                            newSteps.push(clone);
+                        }
+                    });
+                    savedCollections.push(...newSteps);
+                    await saveServerData();
+                    renderCollectionsList();
+                });
+            } else {
+                const newSteps = [];
+                savedCollections.forEach(r => {
+                    if (r.collection === oldName && (r.flowGroup || 'Default') === group) {
+                        const clone = JSON.parse(JSON.stringify(r));
+                        clone.id = Date.now().toString() + Math.random();
+                        clone.collection = oldName;
+                        clone.flowGroup = targetGroup;
+                        newSteps.push(clone);
+                    }
+                });
+                savedCollections.push(...newSteps);
+                await saveServerData();
+                renderCollectionsList();
+            }
+        });
+    }
+
+    async function deleteFlow(name, group) {
+        if (confirm(`Are you sure you want to delete the flow "${name}"?`)) {
+            const activeStep = savedCollections.find(r => r.id === activeRequestId);
+            if (activeStep && activeStep.collection === name && activeStep.flowGroup === group) {
+                activeRequestId = null;
+                updateBreadcrumbs(null);
+            }
+            savedCollections = savedCollections.filter(r => !(r.collection === name && r.flowGroup === group));
+            await saveServerData();
+            renderCollectionsList();
+        }
+    }
+
+    async function moveFlow(name, group) {
+        const currentGroupFixed = group || 'Default';
+        openActionModal(`Move Flow: ${name}`, false, currentGroupFixed, null, async (targetGroup) => {
+            if (targetGroup === currentGroupFixed) return false;
+            const existingFlowsInTarget = Array.from(new Set(savedCollections.filter(r => (r.flowGroup || 'Default') === targetGroup).map(r => r.collection || 'Default')));
+            if (existingFlowsInTarget.includes(name)) {
+                alert(`A flow named "${name}" already exists in the target group.`);
+                return false;
+            }
+            
+            // Determine if the active step is in this flow before we move it
+            const activeStep = savedCollections.find(r => r.id === activeRequestId);
+            const isMovingActiveFlow = activeStep && activeStep.collection === name && (activeStep.flowGroup || 'Default') === currentGroupFixed;
+
+            savedCollections.forEach(r => {
+                if (r.collection === name && (r.flowGroup || 'Default') === currentGroupFixed) {
+                    r.flowGroup = targetGroup;
+                }
+            });
+
+            if (isMovingActiveFlow) {
+                currentGroup = targetGroup;
+                expandedFlows.add(`${targetGroup}:${name}`);
+            }
+
+            await saveServerData();
+            renderCollectionsList();
+            
+            if (isMovingActiveFlow && activeStep) {
+                loadRequestIntoUI(activeStep);
+            }
+        });
+    }
+
+    async function renameStep(step) {
+        const existingNames = savedCollections
+            .filter(r => (r.flowGroup || 'Default') === (step.flowGroup || 'Default') && (r.collection || 'Default') === (step.collection || 'Default'))
+            .map(r => r.name);
+            
+        openInputModal("Rename Step", step.name, existingNames, async (name) => {
+            step.name = name;
+            await saveServerData();
+            renderCollectionsList();
+            if (step.id === activeRequestId) updateBreadcrumbs(step);
+        });
+    }
+
+    async function copyStep(step) {
+        openActionModal(`Copy Step: ${step.name}`, true, step.flowGroup, step.collection, async (targetGroup, targetFlow) => {
+            const existingNames = savedCollections
+                .filter(r => (r.flowGroup || 'Default') === targetGroup && (r.collection || 'Default') === targetFlow)
+                .map(r => r.name);
+            
+            const name = getUniqueName(step.name, existingNames);
+            const clone = JSON.parse(JSON.stringify(step));
+            clone.id = Date.now().toString() + Math.random();
+            clone.name = name;
+            clone.flowGroup = targetGroup;
+            clone.collection = targetFlow;
+            savedCollections.push(clone);
+            await saveServerData();
+            renderCollectionsList();
+        });
+    }
+
+    async function deleteStep(step) {
+        if (confirm(`Delete step "${step.name}"?`)) {
+            if (step.id === activeRequestId) {
+                activeRequestId = null;
+                updateBreadcrumbs(null);
+            }
+            savedCollections = savedCollections.filter(r => r.id !== step.id);
+            await saveServerData();
+            renderCollectionsList();
+        }
+    }
+
+    async function moveStep(step) {
+        openActionModal(`Move Step: ${step.name}`, true, step.flowGroup || 'Default', step.collection || 'Default', async (targetGroup, targetFlow) => {
+            if (targetGroup === (step.flowGroup || 'Default') && targetFlow === (step.collection || 'Default')) return false;
+            
+            const existingNames = savedCollections
+                .filter(r => (r.flowGroup || 'Default') === targetGroup && (r.collection || 'Default') === targetFlow)
+                .map(r => r.name);
+            
+            if (existingNames.includes(step.name)) {
+                alert(`A step named "${step.name}" already exists in the target flow.`);
+                return false;
+            }
+            
+            const isCurrentlyActive = step.id === activeRequestId;
+            
+            step.flowGroup = targetGroup;
+            step.collection = targetFlow;
+
+            if (isCurrentlyActive) {
+                currentGroup = targetGroup;
+                expandedFlows.add(`${targetGroup}:${targetFlow}`);
+            }
+
+            await saveServerData();
+            renderCollectionsList();
+            
+            if (isCurrentlyActive) {
+                loadRequestIntoUI(step);
+            }
+        });
+    }
+
     // --- Save/Load Logic ---
     async function saveServerData() {
         try {
@@ -643,39 +1118,84 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function renderCollectionsList() {
-        collectionList.innerHTML = '';
+        // 1. Render Groups
+        groupsList.innerHTML = '';
         
-        // Assign default flowGroup if missing
+        // Ensure all groups from collections are in savedGroups
         savedCollections.forEach(req => {
-            if (!req.flowGroup) req.flowGroup = 'Default';
+            const g = req.flowGroup || 'Default';
+            if (!savedGroups.includes(g)) savedGroups.push(g);
         });
 
-        // Collect all unique groups (merge savedGroups + groups found in data)
-        const allGroups = new Set(savedGroups);
-        savedCollections.forEach(r => allGroups.add(r.flowGroup));
-        allGroups.add('Default');
+        savedGroups.forEach(g => {
+            const div = document.createElement('div');
+            div.className = `group-item ${g === currentGroup ? 'active' : ''}`;
+            div.draggable = true;
+            div.innerHTML = `<i class="fas fa-grip-vertical group-drag-handle" style="color: #475569; margin-right: 6px; cursor: grab;"></i><i class="fas fa-folder"></i> <span>${escapeHTML(g)}</span>`;
+            
+            div.onclick = (e) => {
+                if (e.target.closest('.group-drag-handle')) return;
+                currentGroup = g;
+                renderCollectionsList();
+            };
+            
+            div.oncontextmenu = (e) => showContextMenu(e, 'group', g);
 
-        // Update Group Dropdown
-        const currentGroup = activeGroupSelect.value;
-        activeGroupSelect.innerHTML = '';
-        Array.from(allGroups).sort().forEach(g => {
-            const opt = document.createElement('option');
-            opt.value = g;
-            opt.textContent = g;
-            activeGroupSelect.appendChild(opt);
+            // Group Drag and Drop
+            div.addEventListener('dragstart', function(e) {
+                window.draggedGroupEle = this;
+                setTimeout(() => this.classList.add('dragging'), 0);
+                e.dataTransfer.effectAllowed = 'move';
+            });
+
+            div.addEventListener('dragend', function() {
+                this.classList.remove('dragging');
+                window.draggedGroupEle = null;
+            });
+
+            div.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                if (!window.draggedGroupEle || !groupsList.contains(window.draggedGroupEle)) return;
+                e.dataTransfer.dropEffect = 'move';
+                
+                const rect = this.getBoundingClientRect();
+                const midY = rect.top + rect.height / 2;
+                if (e.clientY < midY) {
+                    this.parentNode.insertBefore(window.draggedGroupEle, this);
+                } else {
+                    this.parentNode.insertBefore(window.draggedGroupEle, this.nextSibling);
+                }
+            });
+
+            div.addEventListener('drop', async function(e) {
+                e.preventDefault();
+                if (window.draggedGroupEle) {
+                    const newOrder = Array.from(groupsList.querySelectorAll('.group-item span')).map(span => span.textContent);
+                    savedGroups = newOrder;
+                    await saveServerData();
+                    // No need to re-render everything, order is already updated in DOM
+                }
+            });
+
+            groupsList.appendChild(div);
         });
-        if (allGroups.has(currentGroup)) {
-            activeGroupSelect.value = currentGroup;
-        } else {
-            activeGroupSelect.value = 'Default';
+
+        // Update flows header with current group name
+        const flowsHeaderText = document.getElementById('flowsHeaderText');
+        if (flowsHeaderText) {
+            flowsHeaderText.textContent = `Flows in ${currentGroup}`;
         }
 
-        const selectedGroup = activeGroupSelect.value;
+        const activeGroupNameDisplay = document.getElementById('activeGroupNameDisplay');
+        if (activeGroupNameDisplay) {
+            activeGroupNameDisplay.textContent = currentGroup;
+        }
 
-        // Group by flow (collection) within selected group
+        // 2. Render Flows for current group
+        collectionList.innerHTML = '';
         const flows = {};
         savedCollections.forEach(req => {
-            if (req.flowGroup !== selectedGroup) return;
+            if ((req.flowGroup || 'Default') !== currentGroup) return;
             const flowName = req.collection || 'Default';
             if (!flows[flowName]) flows[flowName] = [];
             flows[flowName].push(req);
@@ -684,35 +1204,107 @@ document.addEventListener('DOMContentLoaded', () => {
         Object.keys(flows).forEach(flowName => {
             const flowSection = document.createElement('div');
             flowSection.className = 'flow-group';
+            const flowKey = `${currentGroup}:${flowName}`;
+            const isExpanded = expandedFlows.has(flowKey);
             
             const header = document.createElement('div');
             header.className = 'flow-group-header';
+            header.draggable = true;
             header.style.cursor = 'pointer';
             header.innerHTML = `
-                <span><i class="fas fa-chevron-right flow-chevron" style="margin-right: 10px; transition: transform 0.2s; font-size: 0.7rem;"></i><i class="fas fa-layer-group" style="margin-right: 6px;"></i>${escapeHTML(flowName)}</span>
-                <button class="btn-icon run-flow-btn" title="Run Flow" style="font-size: 0.7rem; color: #34d399; background: rgba(16, 185, 129, 0.15); padding: 4px 8px; border-radius: 4px; border: 1px solid rgba(52, 211, 153, 0.25);"><i class="fas fa-play"></i></button>
+                <i class="fas fa-grip-vertical flow-drag-handle" style="color: #475569; margin-right: 6px; cursor: grab;"></i>
+                <span style="flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"><i class="fas fa-chevron-right flow-chevron" style="margin-right: 10px; transition: transform 0.2s; font-size: 0.7rem; transform: ${isExpanded ? 'rotate(90deg)' : 'rotate(0deg)'}"></i><i class="fas fa-layer-group" style="margin-right: 6px;"></i>${escapeHTML(flowName)}</span>
+                <div style="display:flex; gap:4px; align-items:center;">
+                    <button class="btn-icon add-step-btn" title="Add Step" style="font-size: 0.7rem; color: var(--accent); background: rgba(59, 130, 246, 0.1); padding: 4px 8px; border-radius: 4px; border: 1px solid rgba(59, 130, 246, 0.2);"><i class="fas fa-plus"></i></button>
+                    <button class="btn-icon run-flow-btn" title="Run Flow" style="font-size: 0.7rem; color: #34d399; background: rgba(16, 185, 129, 0.15); padding: 4px 8px; border-radius: 4px; border: 1px solid rgba(52, 211, 153, 0.25);"><i class="fas fa-play"></i></button>
+                </div>
             `;
             
+            header.oncontextmenu = (e) => showContextMenu(e, 'flow', { name: flowName, group: currentGroup });
+            
+            header.querySelector('.add-step-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                addNewStep(flowName, currentGroup);
+            });
+
             header.querySelector('.run-flow-btn').addEventListener('click', (e) => {
                 e.stopPropagation();
                 runFlow(flowName, flows[flowName]);
             });
 
+            // Flow Drag and Drop
+            header.addEventListener('dragstart', function(e) {
+                window.draggedFlowName = flowName;
+                window.draggedFlowEle = flowSection;
+                setTimeout(() => flowSection.classList.add('dragging'), 0);
+                e.dataTransfer.effectAllowed = 'move';
+            });
+
+            header.addEventListener('dragend', function() {
+                flowSection.classList.remove('dragging');
+                window.draggedFlowName = null;
+                window.draggedFlowEle = null;
+            });
+
+            header.addEventListener('dragover', function(e) {
+                e.preventDefault();
+                if (!window.draggedFlowEle || !collectionList.contains(window.draggedFlowEle)) return;
+                e.dataTransfer.dropEffect = 'move';
+                
+                const rect = flowSection.getBoundingClientRect();
+                const midY = rect.top + rect.height / 2;
+                if (e.clientY < midY) {
+                    flowSection.parentNode.insertBefore(window.draggedFlowEle, flowSection);
+                } else {
+                    flowSection.parentNode.insertBefore(window.draggedFlowEle, flowSection.nextSibling);
+                }
+            });
+
+            header.addEventListener('drop', async function(e) {
+                e.preventDefault();
+                if (window.draggedFlowName) {
+                    const newFlowOrder = Array.from(collectionList.querySelectorAll('.flow-group-header span')).map(span => {
+                        // Extract just the flow name from the span
+                        return span.textContent.trim();
+                    });
+                    
+                    // Re-sort savedCollections based on the new flow order
+                    const otherGroupItems = savedCollections.filter(r => (r.flowGroup || 'Default') !== currentGroup);
+                    const currentGroupItems = savedCollections.filter(r => (r.flowGroup || 'Default') === currentGroup);
+                    
+                    const sortedCurrentGroupItems = [];
+                    newFlowOrder.forEach(fName => {
+                        const flowSteps = currentGroupItems.filter(r => (r.collection || 'Default') === fName);
+                        sortedCurrentGroupItems.push(...flowSteps);
+                    });
+                    
+                    savedCollections = [...otherGroupItems, ...sortedCurrentGroupItems];
+                    await saveServerData();
+                }
+            });
+
             const reqsContainer = document.createElement('div');
             reqsContainer.className = 'flow-requests';
-            reqsContainer.style.display = 'none'; // collapsed by default
+            reqsContainer.style.display = isExpanded ? 'block' : 'none';
 
             const chevron = header.querySelector('.flow-chevron');
             header.addEventListener('click', (e) => {
                 if (e.target.closest('.run-flow-btn')) return;
-                const isOpen = reqsContainer.style.display !== 'none';
-                reqsContainer.style.display = isOpen ? 'none' : 'block';
-                chevron.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
+                const currentlyOpen = reqsContainer.style.display !== 'none';
+                if (currentlyOpen) {
+                    reqsContainer.style.display = 'none';
+                    chevron.style.transform = 'rotate(0deg)';
+                    expandedFlows.delete(flowKey);
+                } else {
+                    reqsContainer.style.display = 'block';
+                    chevron.style.transform = 'rotate(90deg)';
+                    expandedFlows.add(flowKey);
+                }
             });
 
             flows[flowName].forEach(req => {
                 const div = document.createElement('div');
-                div.className = 'saved-request-item';
+                div.className = `saved-request-item ${req.id === activeRequestId ? 'active-request' : ''}`;
                 div.draggable = true;
                 div.dataset.flow = flowName;
                 div.reqData = req;
@@ -729,31 +1321,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
 
                 div.innerHTML = `
-                    <div style="display:flex; justify-content:space-between; align-items:flex-start; width:100%;">
-                        <div style="min-width:0; flex:1;">
-                            <div class="req-name"><i class="fas fa-grip-vertical" style="color: #475569; margin-right: 6px;"></i>${iconHtml} ${escapeHTML(req.name)}</div>
-                            <div class="req-meta">
-                                ${methodHtml}
-                                <span class="url-trunc" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px; display:inline-block; vertical-align:bottom;">${descHtml}</span>
-                            </div>
-                        </div>
-                        <button class="btn-icon delete-step-btn" title="Delete Step" style="padding:4px; margin-left:4px; pointer-events: auto; position: relative; z-index: 50;"><i class="fas fa-trash" style="font-size: 0.8rem; color: #ef4444; pointer-events: none;"></i></button>
+                    <div class="req-name"><i class="fas fa-grip-vertical" style="color: #475569; margin-right: 6px;"></i>${iconHtml} ${escapeHTML(req.name)}</div>
+                    <div class="req-meta">
+                        ${methodHtml}
+                        <span class="url-trunc" style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 150px; display:inline-block; vertical-align:bottom;">${descHtml}</span>
                     </div>
                 `;
                 
                 div.addEventListener('click', () => loadRequestIntoUI(req));
-
-                const delBtn = div.querySelector('.delete-step-btn');
-                delBtn.addEventListener('click', async (e) => {
-                    e.stopPropagation();
-                    if(confirm(`Are you sure you want to delete the step "${req.name}"?`)) {
-                        savedCollections = savedCollections.filter(r => r !== req);
-                        await saveServerData();
-                        renderCollectionsList();
-                    }
-                });
+                div.oncontextmenu = (e) => showContextMenu(e, 'step', req);
                 
-                // --- Drag and Drop Logic ---
+                // Drag & Drop
                 div.addEventListener('dragstart', function(e) {
                     window.draggedRequestEle = this;
                     setTimeout(() => this.classList.add('dragging'), 0);
@@ -769,14 +1347,10 @@ document.addEventListener('DOMContentLoaded', () => {
                     e.preventDefault();
                     if (!window.draggedRequestEle || window.draggedRequestEle.dataset.flow !== this.dataset.flow) return;
                     e.dataTransfer.dropEffect = 'move';
-                    
                     const rect = this.getBoundingClientRect();
                     const midY = rect.top + rect.height / 2;
-                    if (e.clientY < midY) {
-                        this.parentNode.insertBefore(window.draggedRequestEle, this);
-                    } else {
-                        this.parentNode.insertBefore(window.draggedRequestEle, this.nextSibling);
-                    }
+                    if (e.clientY < midY) this.parentNode.insertBefore(window.draggedRequestEle, this);
+                    else this.parentNode.insertBefore(window.draggedRequestEle, this.nextSibling);
                 });
 
                 div.addEventListener('drop', async function(e) {
@@ -785,16 +1359,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (dragEle && dragEle.dataset.flow === this.dataset.flow) {
                         const container = this.parentNode;
                         const newOrder = Array.from(container.children).map(child => child.reqData);
-                        
                         const updatedCollections = [];
                         let flowIdx = 0;
                         savedCollections.forEach(r => {
-                            if ((r.collection || 'Default') === flowName && r.flowGroup === selectedGroup) {
+                            if ((r.collection || 'Default') === flowName && (r.flowGroup || 'Default') === currentGroup) {
                                 updatedCollections.push(newOrder[flowIdx]);
                                 flowIdx++;
-                            } else {
-                                updatedCollections.push(r);
-                            }
+                            } else updatedCollections.push(r);
                         });
                         savedCollections = updatedCollections;
                         await saveServerData();
@@ -810,11 +1381,6 @@ document.addEventListener('DOMContentLoaded', () => {
             collectionList.appendChild(flowSection);
         });
     }
-
-    // Re-render when group changes
-    activeGroupSelect.addEventListener('change', () => {
-        renderCollectionsList();
-    });
 
     // --- Flow Runner Engine ---
     if(closeFlowRunnerBtn) closeFlowRunnerBtn.addEventListener('click', () => flowRunnerModal.classList.add('hidden'));
@@ -1085,6 +1651,14 @@ ${sBody ? `<div style="color:#34d399; font-weight:bold; margin-bottom:4px;">RES 
     }
 
     function loadRequestIntoUI(req) {
+        activeRequestId = req.id;
+        // Re-render only if we need to update active-request class
+        document.querySelectorAll('.saved-request-item').forEach(el => {
+            el.classList.toggle('active-request', el.reqData.id === activeRequestId);
+        });
+
+        updateBreadcrumbs(req);
+
         if (req.type && req.type !== 'request') {
             stepType.value = req.type;
             stepType.dispatchEvent(new Event('change'));
@@ -1149,151 +1723,100 @@ ${sBody ? `<div style="color:#34d399; font-weight:bold; margin-bottom:4px;">RES 
     }
 
     newGroupBtn.addEventListener('click', async () => {
-        const name = prompt("Enter new group name:");
-        if (name && name.trim()) {
-            const groupName = name.trim();
-            if (!savedGroups.includes(groupName)) {
-                savedGroups.push(groupName);
+        openInputModal("New Group", "New Group", savedGroups, async (name) => {
+            if (!savedGroups.includes(name)) {
+                savedGroups.push(name);
                 await saveServerData();
             }
-            activeGroupSelect.value = groupName;
+            currentGroup = name;
             renderCollectionsList();
-        }
-    });
-
-    newRequestBtn.addEventListener('click', () => {
-        // Reset URL and Method
-        stepType.value = 'request';
-        stepType.dispatchEvent(new Event('change'));
-        
-        reqUrl.value = '';
-        reqMethod.value = 'GET';
-        reqMethod.dispatchEvent(new Event('change'));
-
-        // Clear all tabs content (headers and extractors)
-        document.querySelectorAll('.key-value-row').forEach(r => r.remove());
-
-        // Reset Auth
-        setAuth({ type: 'none' });
-
-        // Reset Body
-        document.querySelector(`input[name="bodyType"][value="none"]`).checked = true;
-        bodyEditor.disabled = true;
-        bodyEditor.value = '';
-        updateLineNumbers(bodyEditor, bodyEditorLines);
-
-        // Reset Response Viewer
-        resStatus.textContent = 'Status: --';
-        resStatus.className = 'status-badge';
-        resTime.innerHTML = '<i class="fas fa-clock"></i> -- ms';
-        resSize.innerHTML = '<i class="fas fa-save"></i> -- B';
-        responseBody.textContent = 'Response will appear here...';
-        responseHeaders.textContent = 'Headers will appear here...';
-        
-        // Reset save modal inputs
-        document.getElementById('saveReqName').value = '';
-        
-        // Focus URL
-        reqUrl.focus();
-    });
-
-    saveBtn.addEventListener('click', () => {
-        saveGroupLabel.textContent = `Group: ${activeGroupSelect.value}`;
-        
-        // Populate flow dropdown with existing flows for the selected group
-        const selectedGroup = activeGroupSelect.value;
-        const flowSelect = document.getElementById('saveFlowName');
-        flowSelect.innerHTML = '';
-        const existingFlows = new Set();
-        savedCollections.forEach(r => {
-            if ((r.flowGroup || 'Default') === selectedGroup) {
-                existingFlows.add(r.collection || 'Default');
-            }
         });
-        if (existingFlows.size === 0) existingFlows.add('Default');
-        existingFlows.forEach(f => {
-            const opt = document.createElement('option');
-            opt.value = f;
-            opt.textContent = f;
-            flowSelect.appendChild(opt);
-        });
-        
-        saveModal.classList.remove('hidden');
     });
-    cancelSaveBtn.addEventListener('click', () => saveModal.classList.add('hidden'));
 
-    // New Flow button inside save modal
-    document.getElementById('newFlowInModalBtn').addEventListener('click', () => {
-        const name = prompt("Enter new flow name:");
-        if (name && name.trim()) {
-            const flowSelect = document.getElementById('saveFlowName');
-            const flowName = name.trim();
-            // Check if already exists
-            let exists = false;
-            Array.from(flowSelect.options).forEach(opt => {
-                if (opt.value === flowName) exists = true;
-            });
-            if (!exists) {
-                const opt = document.createElement('option');
-                opt.value = flowName;
-                opt.textContent = flowName;
-                flowSelect.appendChild(opt);
-            }
-            flowSelect.value = flowName;
-        }
-    });
-    
-    confirmSaveBtn.addEventListener('click', async () => {
-        const name = document.getElementById('saveReqName').value.trim();
-        const flowName = document.getElementById('saveFlowName').value || 'Default';
-        const flowGroup = activeGroupSelect.value;
+    newFlowBtn.addEventListener('click', async () => {
+        const existingFlows = Array.from(new Set(savedCollections.filter(r => (r.flowGroup || 'Default') === currentGroup).map(r => r.collection || 'Default')));
+        const suggestedName = getUniqueName("New Flow", existingFlows);
         
-        if (!name) return alert("Name is required");
-
-        let dataToSave;
-        const type = stepType.value;
-        
-        if (type === 'request') {
-            dataToSave = {
+        openInputModal("New Flow", suggestedName, existingFlows, async (flowName) => {
+            // Create a default initial step so the flow appears in the list
+            const initialRequest = {
                 id: Date.now().toString(),
-                name,
+                name: getUniqueName("New Step", []),
                 collection: flowName,
-                flowGroup,
+                flowGroup: currentGroup,
                 type: 'request',
-                url: reqUrl.value.trim(),
-                method: reqMethod.value,
-                headers: getHeaders(),
-                auth: getAuth(),
-                extractors: getExtractors(),
-                bodyType: document.querySelector('input[name="bodyType"]:checked').value,
-                body: document.querySelector('input[name="bodyType"]:checked').value === 'json' ? 
-                      JSON.parse(bodyEditor.value || '{}') : 
-                      (document.querySelector('input[name="bodyType"]:checked').value !== 'none' ? bodyEditor.value : null)
+                url: "",
+                method: "GET",
+                headers: {},
+                auth: { type: 'none' },
+                extractors: {},
+                bodyType: 'none',
+                body: null
             };
-        } else {
-            let actionData = {};
-            if (type === 'clear_vars') actionData = { vars: document.getElementById('clearVarsInput').value.trim() };
-            if (type === 'delay') actionData = { ms: parseInt(document.getElementById('delayMsInput').value) || 0 };
-            if (type === 'script') actionData = { script: document.getElementById('scriptInput').value };
-            if (type === 'conditional') actionData = { 
-                var: document.getElementById('condVar').value,
-                op: document.getElementById('condOp').value,
-                val: document.getElementById('condVal').value
-            };
-            dataToSave = {
-                id: Date.now().toString(),
-                name,
-                collection: flowName,
-                flowGroup,
-                type: type,
-                actionData
-            };
+            savedCollections.push(initialRequest);
+            expandedFlows.add(`${currentGroup}:${flowName}`);
+            await saveServerData();
+            renderCollectionsList();
+            
+            // Auto-load the new step
+            loadRequestIntoUI(initialRequest);
+        });
+    });
+
+    saveBtn.addEventListener('click', async () => {
+        if (!activeRequestId) {
+            alert("Please select a step from the sidebar first, or create a new one using the + button on a flow.");
+            return;
         }
 
-        savedCollections.push(dataToSave);
+        const step = savedCollections.find(r => r.id === activeRequestId);
+        if (!step) return;
+
+        const type = stepType.value;
+        step.type = type;
+
+        if (type === 'request') {
+            step.url = reqUrl.value.trim();
+            step.method = reqMethod.value;
+            step.headers = getHeaders();
+            step.auth = getAuth();
+            step.extractors = getExtractors();
+            step.bodyType = document.querySelector('input[name="bodyType"]:checked').value;
+            
+            const bType = step.bodyType;
+            if (bType === 'json') {
+                try { step.body = JSON.parse(bodyEditor.value || '{}'); } 
+                catch(e) { return alert("Invalid JSON in body"); }
+            } else if (bType !== 'none') {
+                step.body = bodyEditor.value;
+            } else {
+                step.body = null;
+            }
+        } else {
+            if (!step.actionData) step.actionData = {};
+            if (type === 'clear_vars') step.actionData.vars = document.getElementById('clearVarsInput').value.trim();
+            if (type === 'delay') step.actionData.ms = parseInt(document.getElementById('delayMsInput').value) || 0;
+            if (type === 'script') step.actionData.script = document.getElementById('scriptInput').value;
+            if (type === 'conditional') {
+                step.actionData.var = document.getElementById('condVar').value;
+                step.actionData.op = document.getElementById('condOp').value;
+                step.actionData.val = document.getElementById('condVal').value;
+            }
+        }
+
         await saveServerData();
-        saveModal.classList.add('hidden');
         renderCollectionsList();
+        
+        // Show a brief success feedback on the button
+        const originalHtml = saveBtn.innerHTML;
+        saveBtn.innerHTML = '<i class="fas fa-check"></i> Saved';
+        saveBtn.classList.remove('btn-secondary');
+        saveBtn.classList.add('btn-primary');
+        setTimeout(() => {
+            saveBtn.innerHTML = originalHtml;
+            saveBtn.classList.remove('btn-primary');
+            saveBtn.classList.add('btn-secondary');
+        }, 2000);
     });
 
     // Environment Handlers

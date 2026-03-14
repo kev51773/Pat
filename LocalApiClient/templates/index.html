@@ -17,19 +17,25 @@
                     <h2><i class="fas fa-rocket"></i> API flows</h2>
                     <div style="display: flex; gap: 4px;">
                         <button id="envBtn" class="btn-icon" title="Environment Variables"><i class="fas fa-globe"></i></button>
-                        <button id="newRequestBtn" class="btn-icon" title="New Request"><i class="fas fa-plus"></i></button>
                     </div>
-                </div>
-                <div style="display: flex; gap: 8px; align-items: center;">
-                    <span style="font-size: 0.8rem; color: var(--text-muted);">Group:</span>
-                    <select id="activeGroupSelect" style="flex: 1; padding: 6px; background: rgba(0,0,0,0.2); color: var(--text-main); border: 1px solid var(--border); border-radius: var(--radius-sm); outline: none; font-size: 0.85rem;">
-                        <option value="Default">Default</option>
-                    </select>
-                    <button id="newGroupBtn" class="btn-icon" style="padding: 6px;" title="Create New Group"><i class="fas fa-folder-plus"></i></button>
                 </div>
             </div>
             <div class="collections-container">
-                <div class="collection-list" id="collectionList">
+                <div id="groupsHeader" class="flow-group-header" style="cursor: pointer; margin-bottom: 8px; user-select: none; flex-direction: column; align-items: flex-start; gap: 4px; height: auto; padding: 10px 12px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                        <span><i class="fas fa-chevron-right groups-chevron" style="margin-right: 10px; transition: transform 0.2s; font-size: 0.7rem;"></i><i class="fas fa-folder" style="margin-right: 6px;"></i>Groups</span>
+                        <button id="newGroupBtn" class="btn-icon" style="padding: 2px 6px; font-size: 0.7rem;" title="New Group"><i class="fas fa-plus"></i></button>
+                    </div>
+                    <div id="activeGroupNameDisplay" style="font-size: 0.7rem; color: var(--accent); font-weight: 400; padding-left: 24px; opacity: 0.8;">Default</div>
+                </div>
+                <div id="groupsList" style="padding: 0 4px 10px 12px; display: none; flex-direction: column; gap: 4px; margin-bottom: 12px; border-left: 1px solid var(--border); margin-left: 4px;">
+                    <!-- Groups populated here -->
+                </div>
+                <div id="flowsHeader" class="flow-group-header" style="margin-top: 16px; background: transparent; border-bottom: 1px solid var(--border); border-radius: 0; padding-left: 0; display: flex; justify-content: space-between; align-items: center; height: auto; padding-bottom: 6px;">
+                    <span id="flowsHeaderText" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; pointer-events: none; opacity: 0.6;">Flows in Group</span>
+                    <button id="newFlowBtn" class="btn-icon" style="padding: 2px 6px; font-size: 0.7rem;" title="New Flow"><i class="fas fa-plus"></i></button>
+                </div>
+                <div class="collection-list" id="collectionList" style="margin-top: 8px;">
                     <!-- Saved requests populated here -->
                 </div>
             </div>
@@ -37,6 +43,10 @@
 
         <!-- Main Content -->
         <main class="main-content">
+            <div id="breadcrumbBar" style="padding: 8px 16px; background: rgba(0,0,0,0.2); border-radius: var(--radius-sm); border: 1px solid var(--border); font-size: 0.75rem; color: var(--text-muted); display: flex; align-items: center; gap: 8px; margin-bottom: -10px;">
+                <i class="fas fa-map-marker-alt" style="font-size: 0.7rem; opacity: 0.6;"></i>
+                <span id="breadcrumbContent">Select a step from the sidebar...</span>
+            </div>
             <header class="request-bar">
                 <div class="method-selector">
                     <select id="stepType" class="method-select" style="background:#1e293b; color:#f8fafc; border-color:var(--border); margin-right: 8px;">
@@ -57,9 +67,9 @@
                     </select>
                 </div>
                 <div class="url-input-container" id="reqUrlContainer">
-                    <input type="text" id="reqUrl" class="url-input" placeholder="Enter request URL" value="https://jsonplaceholder.typicode.com/posts/1">
+                    <input type="text" id="reqUrl" class="url-input" placeholder="Enter request URL" value="">
                 </div>
-                <button id="sendBtn" class="btn-primary">Send <i class="fas fa-paper-plane"></i></button>
+                <button id="sendBtn" class="btn-primary">Run Step <i class="fas fa-paper-plane"></i></button>
                 <button id="saveBtn" class="btn-secondary" title="Save Step"><i class="fas fa-save"></i></button>
             </header>
 
@@ -226,31 +236,46 @@
         </main>
     </div>
 
-    <!-- Save Modal -->
-    <div id="saveModal" class="modal hidden">
+    <!-- Input Modal (Naming/Renaming) -->
+    <div id="inputModal" class="modal hidden">
         <div class="modal-content">
-            <h3>Save Step</h3>
+            <h3 id="inputModalTitle">Enter Name</h3>
             <div class="input-group">
-                <label>Step Name</label>
-                <input type="text" id="saveReqName" placeholder="e.g. Get User Profile">
-            </div>
-            <div class="input-group" style="margin-top: 12px;">
-                <label>Flow</label>
-                <div style="display: flex; gap: 8px; align-items: center;">
-                    <select id="saveFlowName" style="flex: 1; padding: 8px; background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border); border-radius: var(--radius-sm); outline: none;">
-                        <option value="Default">Default</option>
-                    </select>
-                    <button id="newFlowInModalBtn" class="btn-icon" style="padding: 6px;" title="New Flow"><i class="fas fa-plus"></i></button>
-                </div>
-            </div>
-            <div class="input-group" style="margin-top: 12px; padding: 8px; background: rgba(59, 130, 246, 0.1); border-radius: 4px;">
-                <label id="saveGroupLabel" style="color: #60a5fa; margin-bottom: 0;">Group: Default</label>
+                <label id="inputModalLabel">Name</label>
+                <input type="text" id="inputModalField" style="width: 100%; padding: 8px; background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border); border-radius: var(--radius-sm); outline: none;" autocomplete="off">
+                <div id="inputModalError" style="color: #f87171; font-size: 0.75rem; margin-top: 8px; min-height: 1em;"></div>
             </div>
             <div class="modal-actions">
-                <button id="cancelSaveBtn" class="btn-secondary">Cancel</button>
-                <button id="confirmSaveBtn" class="btn-primary">Save</button>
+                <button id="cancelInputBtn" class="btn-secondary">Cancel</button>
+                <button id="confirmInputBtn" class="btn-primary">Confirm</button>
             </div>
         </div>
+    </div>
+
+    <!-- Action Modal (Move/Copy) -->
+    <div id="actionModal" class="modal hidden">
+        <div class="modal-content">
+            <h3 id="actionModalTitle">Move / Copy</h3>
+            <div class="input-group" id="actionGroupNameContainer">
+                <label>Target Group</label>
+                <select id="actionGroupName" style="width: 100%; padding: 8px; background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border); border-radius: var(--radius-sm); outline: none;">
+                </select>
+            </div>
+            <div class="input-group" id="actionFlowNameContainer" style="margin-top: 12px;">
+                <label>Target Flow</label>
+                <select id="actionFlowName" style="width: 100%; padding: 8px; background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border); border-radius: var(--radius-sm); outline: none;">
+                </select>
+            </div>
+            <div class="modal-actions">
+                <button id="cancelActionBtn" class="btn-secondary">Cancel</button>
+                <button id="confirmActionBtn" class="btn-primary">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Context Menu -->
+    <div id="contextMenu" class="context-menu hidden">
+        <!-- populated dynamically -->
     </div>
 
     <!-- Environment Modal -->

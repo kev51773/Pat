@@ -65,6 +65,13 @@ button {
     transform: translateY(-1px);
 }
 
+.btn-primary:disabled, .btn-secondary:disabled, .btn-outline:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    pointer-events: none;
+}
+
 .btn-secondary {
     background: rgba(255, 255, 255, 0.1);
     color: var(--text-main);
@@ -130,28 +137,108 @@ button {
 }
 
 .saved-request-item {
-    padding: 12px;
+    padding: 10px 12px;
     border-radius: var(--radius-sm);
     cursor: pointer;
     margin-bottom: 6px;
-    transition: background 0.2s;
+    transition: all 0.2s;
     display: flex;
     flex-direction: column;
     gap: 4px;
-    border: 1px solid transparent;
+    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.02);
 }
 
 .saved-request-item * {
     pointer-events: none;
 }
 
-.saved-request-item .delete-step-btn,
-.saved-request-item .delete-step-btn * {
-    pointer-events: auto;
-}
-
 .saved-request-item:hover {
     background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.2);
+    transform: translateX(2px);
+}
+
+.saved-request-item.active-request {
+    background: rgba(59, 130, 246, 0.15);
+    border-color: var(--accent);
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
+}
+
+/* Groups Styling */
+.group-item {
+    padding: 8px 12px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border: 1px solid transparent;
+}
+
+.group-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-main);
+}
+
+.group-item.active {
+    background: rgba(59, 130, 246, 0.1);
+    color: var(--accent);
+    border-color: rgba(59, 130, 246, 0.3);
+    font-weight: 500;
+}
+
+.group-item.dragging {
+    opacity: 0.5;
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px dashed var(--accent);
+}
+
+/* Context Menu */
+.context-menu {
+    position: fixed;
+    background: #1e293b;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+    z-index: 1000;
+    min-width: 160px;
+    padding: 4px;
+}
+
+.context-menu-item {
+    padding: 8px 12px;
+    font-size: 0.85rem;
+    color: var(--text-main);
+    cursor: pointer;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    transition: background 0.2s;
+}
+
+.context-menu-item:hover {
+    background: var(--accent);
+}
+
+.context-menu-item i {
+    width: 14px;
+    text-align: center;
+    font-size: 0.8rem;
+    opacity: 0.7;
+}
+
+.context-menu-item.delete {
+    color: #f87171;
+}
+
+.context-menu-item.delete:hover {
+    background: #ef4444;
+    color: white;
 }
 
 .saved-request-item.dragging {
