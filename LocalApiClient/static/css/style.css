@@ -147,6 +147,23 @@ button {
     gap: 4px;
     border: 1px solid var(--border);
     background: rgba(255, 255, 255, 0.02);
+    position: relative;
+}
+
+.saved-request-item:not(:last-child)::after {
+    content: '\f078';
+    font-family: "Font Awesome 6 Free";
+    font-weight: 900;
+    position: absolute;
+    bottom: -12px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 1.1rem;
+    color: var(--get-color);
+    opacity: 0.7;
+    pointer-events: none;
+    z-index: 10;
+    text-shadow: 0 0 6px rgba(0,0,0,0.8);
 }
 
 .saved-request-item * {
