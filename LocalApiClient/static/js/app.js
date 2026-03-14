@@ -270,6 +270,12 @@ document.addEventListener('DOMContentLoaded', () => {
     
     function setAuth(auth) {
         if (!auth) auth = { type: 'none' };
+        
+        // Reset all fields
+        authBasicUser.value = '';
+        authBasicPass.value = '';
+        authBearerToken.value = '';
+
         document.querySelector(`input[name="authType"][value="${auth.type}"]`).checked = true;
         document.querySelector(`input[name="authType"][value="${auth.type}"]`).dispatchEvent(new Event('change'));
         if (auth.type === 'basic') {
@@ -278,6 +284,51 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (auth.type === 'bearer') {
             authBearerToken.value = auth.token || '';
         }
+    }
+
+    const applyAuthToHeadersBtn = document.getElementById('applyAuthToHeadersBtn');
+    if (applyAuthToHeadersBtn) {
+        applyAuthToHeadersBtn.addEventListener('click', () => {
+            const auth = getAuth();
+            let headerValue = '';
+            
+            if (auth.type === 'basic') {
+                if (!auth.username && !auth.password) return alert("Please enter a username and password.");
+                headerValue = 'Basic ' + btoa(auth.username + ':' + auth.password);
+            } else if (auth.type === 'bearer') {
+                if (!auth.token) return alert("Please enter a token.");
+                headerValue = 'Bearer ' + auth.token;
+            } else {
+                // "No Auth" selected: search for existing headers to remove
+                const rows = Array.from(document.querySelectorAll('#headersEditor .key-value-row'));
+                const authRows = rows.filter(row => row.querySelector('.h-key').value.trim().toLowerCase() === 'authorization');
+                
+                if (authRows.length > 0) {
+                    if (confirm("No Auth is selected. Do you want to remove the existing Authorization header from the Headers tab?")) {
+                        authRows.forEach(row => row.remove());
+                        document.querySelector('.tab[data-target="headers"]').click();
+                    }
+                } else {
+                    alert("No Authorization header found to remove.");
+                }
+                return;
+            }
+
+            // Remove any existing Authorization headers first to avoid duplicates
+            document.querySelectorAll('#headersEditor .key-value-row').forEach(row => {
+                const key = row.querySelector('.h-key').value.trim();
+                if (key.toLowerCase() === 'authorization') row.remove();
+            });
+
+            // Add the new row
+            addHeaderRow('Authorization', headerValue);
+
+            // Clear the Auth tab to signify it's been moved
+            setAuth({ type: 'none' });
+
+            // Switch to Headers tab
+            document.querySelector('.tab[data-target="headers"]').click();
+        });
     }
 
     // --- Environment Interpolation Logic ---
@@ -1111,6 +1162,20 @@ document.addEventListener('DOMContentLoaded', () => {
             savedCollections = data.collections || [];
             savedEnvironment = data.environment || {};
             savedGroups = data.groups || ['Default'];
+            
+            // Scrub existing auth data from loaded collections
+            let needsResave = false;
+            savedCollections.forEach(req => {
+                if (req.auth && req.auth.type !== 'none') {
+                    req.auth = { type: 'none' };
+                    needsResave = true;
+                }
+            });
+
+            if (needsResave) {
+                await saveServerData();
+            }
+
             if (!savedGroups.includes('Default')) savedGroups.unshift('Default');
             renderCollectionsList();
         } catch (e) {
@@ -1781,7 +1846,7 @@ ${sBody ? `<div style="color:#34d399; font-weight:bold; margin-bottom:4px;">RES 
             step.url = reqUrl.value.trim();
             step.method = reqMethod.value;
             step.headers = getHeaders();
-            step.auth = getAuth();
+            step.auth = { type: 'none' }; // Never save plaintext credentials in the auth object
             step.extractors = getExtractors();
             step.bodyType = document.querySelector('input[name="bodyType"]:checked').value;
             

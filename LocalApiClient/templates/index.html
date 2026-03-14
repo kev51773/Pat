@@ -109,23 +109,32 @@
                             <div id="auth-basic-ui" class="hidden">
                                 <div class="input-group" style="margin-top:0;">
                                     <label>Username</label>
-                                    <input type="text" id="authBasicUser" placeholder="{{username}}" style="background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); padding:8px; border-radius:var(--radius-sm); width:100%; max-width: 400px; margin-bottom: 12px; outline: none;">
+                                    <input type="text" id="authBasicUser" placeholder="Enter username" style="background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); padding:8px; border-radius:var(--radius-sm); width:100%; max-width: 400px; margin-bottom: 12px; outline: none;">
                                 </div>
                                 <div class="input-group" style="margin-top:0;">
                                     <label>Password</label>
-                                    <input type="text" id="authBasicPass" placeholder="{{password}}" style="background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); padding:8px; border-radius:var(--radius-sm); width:100%; max-width: 400px; outline: none;">
+                                    <input type="text" id="authBasicPass" placeholder="Enter password" style="background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); padding:8px; border-radius:var(--radius-sm); width:100%; max-width: 400px; outline: none;">
                                 </div>
                             </div>
 
                             <div id="auth-bearer-ui" class="hidden">
                                 <div class="input-group" style="margin-top:0;">
                                     <label>Token</label>
-                                    <input type="text" id="authBearerToken" placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI..." style="background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); padding:8px; border-radius:var(--radius-sm); width:100%; max-width: 400px; outline: none;">
+                                    <input type="text" id="authBearerToken" placeholder="Enter bearer token" style="background:var(--bg-input); color:var(--text-main); border:1px solid var(--border); padding:8px; border-radius:var(--radius-sm); width:100%; max-width: 400px; outline: none;">
                                 </div>
                             </div>
                             
                             <div id="auth-none-ui" style="color:var(--text-muted); font-size: 0.85rem;">
                                 This request does not use any authorization.
+                            </div>
+
+                            <div style="margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border);">
+                                <button id="applyAuthToHeadersBtn" class="btn-outline" title="Generate Authorization header and add it to the Headers tab">
+                                    <i class="fas fa-arrow-right"></i> Apply to Headers
+                                </button>
+                                <p style="font-size: 0.75rem; color: var(--text-muted); margin-top: 8px;">
+                                    This will generate an <code>Authorization</code> header and add it to your Headers list, allowing you to save it as part of the request.
+                                </p>
                             </div>
                         </div>
                         <!-- Body Tab -->
