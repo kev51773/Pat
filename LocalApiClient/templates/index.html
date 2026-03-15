@@ -16,6 +16,7 @@
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <h2><i class="fas fa-rocket"></i> API flows</h2>
                     <div style="display: flex; gap: 4px;">
+                        <button id="dynamicVarsBtn" class="btn-icon" title="Dynamic Variables Cheat Sheet"><i class="fas fa-info-circle"></i></button>
                         <button id="envBtn" class="btn-icon" title="Environment Variables"><i class="fas fa-globe"></i></button>
                     </div>
                 </div>
@@ -290,6 +291,48 @@
     <!-- Context Menu -->
     <div id="contextMenu" class="context-menu hidden">
         <!-- populated dynamically -->
+    </div>
+
+    <!-- Dynamic Variables Modal -->
+    <div id="dynamicVarsModal" class="modal hidden">
+        <div class="modal-content" style="width: 800px; max-height: 80vh; display: flex; flex-direction: column; padding: 0; overflow: hidden;">
+            <div style="padding: 24px 24px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: flex-start;">
+                <div>
+                    <h3 style="margin-bottom: 4px;">Dynamic Variables</h3>
+                    <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">Use these with <code>{% raw %}{{$name}}{% endraw %}</code> for automatic values.</p>
+                </div>
+                <button id="closeDynamicVarsBtn" class="btn-primary">Done</button>
+            </div>
+            <div style="flex: 1; overflow-y: auto; padding: 0 24px 24px;">
+                <table class="cheat-sheet-table">
+                    <thead>
+                        <tr><th style="position: sticky; top: 0; background: var(--bg-dark); z-index: 5;">Variable</th><th style="position: sticky; top: 0; background: var(--bg-dark); z-index: 5;">Description</th><th style="position: sticky; top: 0; background: var(--bg-dark); z-index: 5;">Example</th></tr>
+                    </thead>
+                    <tbody>
+                        <tr class="section-row"><td colspan="3">Date & Time</td></tr>
+                        <tr><td><code>$iso</code></td><td>ISO 8601 Timestamp</td><td class="example-cell">2026-03-15T14:30:00Z</td></tr>
+                        <tr><td><code>$timestamp</code></td><td>Unix Timestamp (sec)</td><td class="example-cell">1742049000</td></tr>
+                        <tr><td><code>$date</code></td><td>Date (YYYY-MM-DD)</td><td class="example-cell">2026-03-15</td></tr>
+                        <tr><td><code>$datetime</code></td><td>Full Date/Time</td><td class="example-cell">2026-03-15 14:30:00</td></tr>
+                        <tr><td><code>$YYYY</code></td><td>Current Year (4-digit)</td><td class="example-cell">2026</td></tr>
+                        <tr><td><code>$YY</code></td><td>Current Year (2-digit)</td><td class="example-cell">26</td></tr>
+                        <tr><td><code>$MM</code></td><td>Current Month (01-12)</td><td class="example-cell">03</td></tr>
+                        <tr><td><code>$DD</code></td><td>Current Day (01-31)</td><td class="example-cell">15</td></tr>
+                        <tr><td><code>$hh</code></td><td>Current Hour (00-23)</td><td class="example-cell">14</td></tr>
+                        <tr><td><code>$mm</code></td><td>Current Minute (00-59)</td><td class="example-cell">30</td></tr>
+                        <tr><td><code>$ss</code></td><td>Current Second (00-59)</td><td class="example-cell">05</td></tr>
+                        
+                        <tr class="section-row"><td colspan="3">Random Data</td></tr>
+                        <tr><td><code>$guid</code></td><td>UUID v4</td><td class="example-cell">550e8400-e29b-41d4-a716-446655440000</td></tr>
+                        <tr><td><code>$randomInt</code></td><td>Random (0-999)</td><td class="example-cell">482</td></tr>
+                        
+                        <tr class="section-row"><td colspan="3">Context</td></tr>
+                        <tr><td><code>$group</code></td><td>Current Group Name</td><td class="example-cell">My API Group</td></tr>
+                        <tr><td><code>$flow</code></td><td>Current Flow Name</td><td class="example-cell">Auth Flow</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
     </div>
 
     <!-- Environment Modal -->

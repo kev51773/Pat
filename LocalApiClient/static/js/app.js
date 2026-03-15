@@ -71,6 +71,16 @@ document.addEventListener('DOMContentLoaded', () => {
     const envEditor = document.getElementById('envEditor');
     const closeEnvBtn = document.getElementById('closeEnvBtn');
 
+    // Dynamic Variables Modal
+    const dynamicVarsBtn = document.getElementById('dynamicVarsBtn');
+    const dynamicVarsModal = document.getElementById('dynamicVarsModal');
+    const closeDynamicVarsBtn = document.getElementById('closeDynamicVarsBtn');
+
+    if (dynamicVarsBtn && dynamicVarsModal && closeDynamicVarsBtn) {
+        dynamicVarsBtn.onclick = () => dynamicVarsModal.classList.remove('hidden');
+        closeDynamicVarsBtn.onclick = () => dynamicVarsModal.classList.add('hidden');
+    }
+
     // Groups Toggle
     const groupsHeader = document.getElementById('groupsHeader');
     const groupsChevron = document.querySelector('.groups-chevron');
@@ -366,6 +376,40 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    function getDynamicVar(name) {
+        const now = new Date();
+        const activeStep = savedCollections.find(r => r.id === activeRequestId);
+
+        switch (name) {
+            case '$iso': return now.toISOString();
+            case '$timestamp': return Math.floor(Date.now() / 1000).toString();
+            case '$date': return now.toISOString().split('T')[0];
+            case '$datetime': return now.getFullYear() + "-" + 
+                                     String(now.getMonth() + 1).padStart(2, '0') + "-" + 
+                                     String(now.getDate()).padStart(2, '0') + " " + 
+                                     String(now.getHours()).padStart(2, '0') + ":" + 
+                                     String(now.getMinutes()).padStart(2, '0') + ":" + 
+                                     String(now.getSeconds()).padStart(2, '0');
+            case '$YYYY': return now.getFullYear().toString();
+            case '$YY': return String(now.getFullYear()).slice(-2);
+            case '$MM': return String(now.getMonth() + 1).padStart(2, '0');
+            case '$DD': return String(now.getDate()).padStart(2, '0');
+            case '$hh': return String(now.getHours()).padStart(2, '0');
+            case '$mm': return String(now.getMinutes()).padStart(2, '0');
+            case '$ss': return String(now.getSeconds()).padStart(2, '0');
+            case '$guid': 
+                if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+                return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+                    const r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+                    return v.toString(16);
+                });
+            case '$randomInt': return Math.floor(Math.random() * 1000).toString();
+            case '$group': return currentGroup;
+            case '$flow': return activeStep ? (activeStep.collection || 'Default') : 'Default';
+            default: return null;
+        }
+    }
+
     async function interpolateStr(str) {
         if (typeof str !== 'string') return str;
         
@@ -374,6 +418,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const regex = /\{\{([^}]+)\}\}/g;
         while ((match = regex.exec(str)) !== null) {
             const key = match[1].trim();
+            
+            // If it's a dynamic variable, we don't check savedEnvironment
+            if (key.startsWith('$')) {
+                const dynVal = getDynamicVar(key);
+                if (dynVal !== null) continue; // Found a valid dynamic var
+            }
+
             if (savedEnvironment[key] === undefined && !missing.includes(key) && !approvedMissingVars.has(key)) {
                 missing.push(key);
             }
@@ -389,6 +440,10 @@ document.addEventListener('DOMContentLoaded', () => {
 
         return str.replace(/\{\{([^}]+)\}\}/g, (mOriginal, key) => {
             const k = key.trim();
+            if (k.startsWith('$')) {
+                const dynVal = getDynamicVar(k);
+                return dynVal !== null ? dynVal : mOriginal;
+            }
             return savedEnvironment[k] !== undefined ? savedEnvironment[k] : mOriginal;
         });
     }
