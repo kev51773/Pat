@@ -66,6 +66,33 @@ document.addEventListener('DOMContentLoaded', () => {
     const confirmActionBtn = document.getElementById('confirmActionBtn');
     let currentActionCallback = null;
 
+    // Confirm Modal
+    const confirmModal = document.getElementById('confirmModal');
+    const confirmModalTitle = document.getElementById('confirmModalTitle');
+    const confirmModalMessage = document.getElementById('confirmModalMessage');
+    const cancelConfirmBtn = document.getElementById('cancelConfirmBtn');
+    const confirmBtn = document.getElementById('confirmBtn');
+
+    function showConfirmModal(title, message, btnText = "Confirm Delete") {
+        return new Promise((resolve) => {
+            confirmModalTitle.textContent = title;
+            confirmModalMessage.textContent = message;
+            confirmBtn.textContent = btnText;
+            
+            confirmModal.classList.remove('hidden');
+            
+            const cleanup = (val) => {
+                confirmModal.classList.add('hidden');
+                confirmBtn.onclick = null;
+                cancelConfirmBtn.onclick = null;
+                resolve(val);
+            };
+            
+            confirmBtn.onclick = () => cleanup(true);
+            cancelConfirmBtn.onclick = () => cleanup(false);
+        });
+    }
+
     const envBtn = document.getElementById('envBtn');
     const envModal = document.getElementById('envModal');
     const envEditor = document.getElementById('envEditor');
@@ -84,12 +111,18 @@ document.addEventListener('DOMContentLoaded', () => {
     // Groups Toggle
     const groupsHeader = document.getElementById('groupsHeader');
     const groupsChevron = document.querySelector('.groups-chevron');
-    if (groupsHeader && groupsList && groupsChevron) {
+    
+    function toggleGroupsList(forceState) {
+        if (!groupsList || !groupsChevron) return;
+        const isHidden = forceState !== undefined ? !forceState : groupsList.style.display !== 'none';
+        groupsList.style.display = isHidden ? 'none' : 'flex';
+        groupsChevron.style.transform = isHidden ? 'rotate(0deg)' : 'rotate(90deg)';
+    }
+
+    if (groupsHeader) {
         groupsHeader.addEventListener('click', (e) => {
             if (e.target.closest('#newGroupBtn')) return;
-            const isHidden = groupsList.style.display === 'none';
-            groupsList.style.display = isHidden ? 'flex' : 'none';
-            groupsChevron.style.transform = isHidden ? 'rotate(90deg)' : 'rotate(0deg)';
+            toggleGroupsList();
         });
     }
     
@@ -785,10 +818,19 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (type === 'step') {
             items.push({ label: 'Rename Step', icon: 'edit', action: () => renameStep(data) });
             items.push({ label: 'Copy Step', icon: 'copy', action: () => copyStep(data) });
+            items.push({ label: 'Move to Flow', icon: 'share-square', action: () => moveStep(data) });
             items.push({ label: data.disabled ? 'Enable Step' : 'Disable Step', icon: data.disabled ? 'eye' : 'eye-slash', action: () => toggleStepDisabled(data) });
             items.push({ label: 'Delete Step', icon: 'trash', class: 'delete', action: () => deleteStep(data) });
-            items.push({ label: 'Move to Flow', icon: 'share-square', action: () => moveStep(data) });
         }
+
+        // Ensure 'Delete' items are always at the end
+        items.sort((a, b) => {
+            const aIsDelete = (a.class || '').includes('delete');
+            const bIsDelete = (b.class || '').includes('delete');
+            if (aIsDelete && !bIsDelete) return 1;
+            if (!aIsDelete && bIsDelete) return -1;
+            return 0;
+        });
 
         items.forEach(item => {
             const div = document.createElement('div');
@@ -1010,8 +1052,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function deleteGroup(name) {
-        if (confirm(`Are you sure you want to delete the group "${name}" and all its flows?`)) {
-            savedCollections = savedCollections.filter(r => r.flowGroup !== name);
+        if (await showConfirmModal("Delete Group", `Are you sure you want to delete the group "${name}" and all its flows? This action cannot be undone.`)) {
+            savedCollections = savedCollections.filter(r => (r.flowGroup || 'Default') !== name);
             savedGroups = savedGroups.filter(g => g !== name);
             if (currentGroup === name) {
                 currentGroup = savedGroups[0] || 'Default';
@@ -1079,13 +1121,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function deleteFlow(name, group) {
-        if (confirm(`Are you sure you want to delete the flow "${name}"?`)) {
+        if (await showConfirmModal("Delete Flow", `Are you sure you want to delete the flow "${name}"? all steps within this flow will be removed.`)) {
             const activeStep = savedCollections.find(r => r.id === activeRequestId);
-            if (activeStep && activeStep.collection === name && activeStep.flowGroup === group) {
+            if (activeStep && activeStep.collection === name && (activeStep.flowGroup || 'Default') === group) {
                 activeRequestId = null;
                 updateBreadcrumbs(null);
             }
-            savedCollections = savedCollections.filter(r => !(r.collection === name && r.flowGroup === group));
+            savedCollections = savedCollections.filter(r => !(r.collection === name && (r.flowGroup || 'Default') === group));
             await saveServerData();
             renderCollectionsList();
         }
@@ -1157,7 +1199,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     async function deleteStep(step) {
-        if (confirm(`Delete step "${step.name}"?`)) {
+        if (await showConfirmModal("Delete Step", `Are you sure you want to delete the step "${step.name}"?`)) {
             if (step.id === activeRequestId) {
                 activeRequestId = null;
                 updateBreadcrumbs(null);
@@ -1265,6 +1307,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (e.target.closest('.group-drag-handle')) return;
                 currentGroup = g;
                 renderCollectionsList();
+                toggleGroupsList(false); // Collapse after selection
             };
             
             div.oncontextmenu = (e) => showContextMenu(e, 'group', g);

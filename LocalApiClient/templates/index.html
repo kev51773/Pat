@@ -21,18 +21,20 @@
                     </div>
                 </div>
             </div>
-            <div class="collections-container">
-                <div id="groupsHeader" class="flow-group-header" style="cursor: pointer; margin-bottom: 8px; user-select: none; flex-direction: column; align-items: flex-start; gap: 4px; height: auto; padding: 10px 12px;">
+            <div class="groups-section" style="padding: 10px;">
+                <div id="groupsHeader" class="flow-group-header" style="cursor: pointer; margin-bottom: 0; user-select: none; flex-direction: column; align-items: flex-start; gap: 4px; height: auto; padding: 10px 12px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                         <span><i class="fas fa-chevron-right groups-chevron" style="margin-right: 10px; transition: transform 0.2s; font-size: 0.7rem;"></i><i class="fas fa-folder" style="margin-right: 6px;"></i>Groups</span>
                         <button id="newGroupBtn" class="btn-icon" style="padding: 2px 6px; font-size: 0.7rem;" title="New Group"><i class="fas fa-plus"></i></button>
                     </div>
                     <div id="activeGroupNameDisplay" style="font-size: 0.7rem; color: var(--accent); font-weight: 400; padding-left: 24px; opacity: 0.8;">Default</div>
                 </div>
-                <div id="groupsList" style="padding: 0 4px 10px 12px; display: none; flex-direction: column; gap: 4px; margin-bottom: 12px; border-left: 1px solid var(--border); margin-left: 4px;">
+                <div id="groupsList" style="padding: 10px 4px 10px 12px; display: none; flex-direction: column; gap: 4px; border-left: 1px solid var(--border); margin-left: 14px; max-height: 300px; overflow-y: auto;">
                     <!-- Groups populated here -->
                 </div>
-                <div id="flowsHeader" class="flow-group-header" style="margin-top: 16px; background: transparent; border-bottom: 1px solid var(--border); border-radius: 0; padding-left: 0; display: flex; justify-content: space-between; align-items: center; height: auto; padding-bottom: 6px;">
+            </div>
+            <div class="collections-container">
+                <div id="flowsHeader" class="flow-group-header" style="margin-top: 0; background: transparent; border-bottom: 1px solid var(--border); border-radius: 0; padding-left: 0; display: flex; justify-content: space-between; align-items: center; height: auto; padding-bottom: 6px;">
                     <span id="flowsHeaderText" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; pointer-events: none; opacity: 0.6;">Flows in Group</span>
                     <button id="newFlowBtn" class="btn-icon" style="padding: 2px 6px; font-size: 0.7rem;" title="New Flow"><i class="fas fa-plus"></i></button>
                 </div>
@@ -284,6 +286,18 @@
             <div class="modal-actions">
                 <button id="cancelActionBtn" class="btn-secondary">Cancel</button>
                 <button id="confirmActionBtn" class="btn-primary">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirmation Modal (Delete) -->
+    <div id="confirmModal" class="modal hidden">
+        <div class="modal-content">
+            <h3 id="confirmModalTitle">Confirm Action</h3>
+            <p id="confirmModalMessage" style="margin-top: 12px; color: var(--text-muted); font-size: 0.9rem; line-height: 1.5;"></p>
+            <div class="modal-actions">
+                <button id="cancelConfirmBtn" class="btn-secondary">Cancel</button>
+                <button id="confirmBtn" class="btn-primary" style="background: #ef4444; box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);">Confirm Delete</button>
             </div>
         </div>
     </div>
