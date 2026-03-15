@@ -785,6 +785,7 @@ document.addEventListener('DOMContentLoaded', () => {
         } else if (type === 'step') {
             items.push({ label: 'Rename Step', icon: 'edit', action: () => renameStep(data) });
             items.push({ label: 'Copy Step', icon: 'copy', action: () => copyStep(data) });
+            items.push({ label: data.disabled ? 'Enable Step' : 'Disable Step', icon: data.disabled ? 'eye' : 'eye-slash', action: () => toggleStepDisabled(data) });
             items.push({ label: 'Delete Step', icon: 'trash', class: 'delete', action: () => deleteStep(data) });
             items.push({ label: 'Move to Flow', icon: 'share-square', action: () => moveStep(data) });
         }
@@ -1167,6 +1168,12 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    async function toggleStepDisabled(step) {
+        step.disabled = !step.disabled;
+        await saveServerData();
+        renderCollectionsList();
+    }
+
     async function moveStep(step) {
         openActionModal(`Move Step: ${step.name}`, true, step.flowGroup || 'Default', step.collection || 'Default', async (targetGroup, targetFlow) => {
             if (targetGroup === (step.flowGroup || 'Default') && targetFlow === (step.collection || 'Default')) return false;
@@ -1426,7 +1433,7 @@ document.addEventListener('DOMContentLoaded', () => {
             flows[flowName].forEach(req => {
                 const isAction = req.type && req.type !== 'request';
                 const div = document.createElement('div');
-                div.className = `saved-request-item ${req.id === activeRequestId ? 'active-request' : ''} ${isAction ? 'action-item' : ''}`;
+                div.className = `saved-request-item ${req.id === activeRequestId ? 'active-request' : ''} ${isAction ? 'action-item' : ''} ${req.disabled ? 'disabled-step' : ''}`;
                 div.draggable = true;
                 div.dataset.flow = flowName;
                 div.reqData = req;
@@ -1608,6 +1615,13 @@ ${sBody ? `<div style="color:#34d399; font-weight:bold; margin-bottom:4px;">RES 
         let successCount = 0;
         for (let i = 0; i < requests.length; i++) {
             const req = requests[i];
+            
+            if (req.disabled) {
+                logFlow(`\n[Step ${i+1}/${requests.length}] ${req.name} (SKIPPED)`, '#94a3b8');
+                successCount++;
+                continue;
+            }
+
             logFlow(`\n[Step ${i+1}/${requests.length}] ${req.name}`);
             
             if (req.type && req.type !== 'request') {

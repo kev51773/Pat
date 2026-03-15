@@ -182,6 +182,16 @@ button {
     box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);
 }
 
+.saved-request-item.disabled-step {
+    opacity: 0.4;
+    filter: grayscale(0.8);
+    border-style: dashed;
+}
+
+.saved-request-item.disabled-step::after {
+    display: none; /* Hide the flow chevron if the step is disabled */
+}
+
 .saved-request-item.action-item {
     background: rgba(139, 92, 246, 0.08);
 }
