@@ -16,6 +16,7 @@
                 <div style="display: flex; justify-content: space-between; align-items: center;">
                     <h2><i class="fas fa-rocket"></i> API flows</h2>
                     <div style="display: flex; gap: 4px;">
+                        <button id="historyBtn" class="btn-icon" title="History"><i class="fas fa-history"></i></button>
                         <button id="dynamicVarsBtn" class="btn-icon" title="Dynamic Variables Cheat Sheet"><i class="fas fa-info-circle"></i></button>
                         <button id="envBtn" class="btn-icon" title="Environment Variables"><i class="fas fa-globe"></i></button>
                     </div>
@@ -291,7 +292,7 @@
     </div>
 
     <!-- Confirmation Modal (Delete) -->
-    <div id="confirmModal" class="modal hidden">
+    <div id="confirmModal" class="modal confirm-modal hidden">
         <div class="modal-content">
             <h3 id="confirmModalTitle">Confirm Action</h3>
             <p id="confirmModalMessage" style="margin-top: 12px; color: var(--text-muted); font-size: 0.9rem; line-height: 1.5;"></p>
@@ -379,6 +380,24 @@
         </div>
     </div>
 
+    <!-- History Modal -->
+    <div id="historyModal" class="modal hidden" style="z-index: 150;">
+        <div class="modal-content" style="width: 1100px; height: 85vh; display: flex; flex-direction: column;">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 16px; border-bottom: 1px solid var(--border); margin-bottom: 16px;">
+                <h3><i class="fas fa-history"></i> Request History</h3>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <button id="exportHistoryBtn" class="btn-outline" title="Export Selected"><i class="fas fa-download"></i> Export Selected</button>
+                    <button id="exportAllHistoryBtn" class="btn-outline" title="Export All"><i class="fas fa-file-export"></i> Export All</button>
+                    <button id="clearHistoryBtn" class="btn-outline" style="color: #f87171; border-color: rgba(248, 113, 113, 0.3);" title="Clear History"><i class="fas fa-trash"></i> Clear</button>
+                    <button id="closeHistoryBtn" class="btn-primary">Close</button>
+                </div>
+            </div>
+            <div id="historyList" style="flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;">
+                <!-- History entries populated here -->
+            </div>
+        </div>
+    </div>
+
     <!-- Extract Popup -->
     <div id="extractPopup" class="extract-popup hidden">
         <input type="text" id="extractVarName" placeholder="Variable name" style="width: 180px; padding: 8px; background: var(--bg-input); color: var(--text-main); border: 1px solid var(--border); border-radius: var(--radius-sm); outline: none;">
@@ -386,6 +405,6 @@
         <button id="cancelExtractBtn" class="btn-icon"><i class="fas fa-times"></i></button>
     </div>
 
-    <script src="{{ url_for('static', filename='js/app.js', v=11) }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js', v=21) }}"></script>
 </body>
 </html>

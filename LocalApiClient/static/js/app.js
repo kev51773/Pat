@@ -108,6 +108,410 @@ document.addEventListener('DOMContentLoaded', () => {
         closeDynamicVarsBtn.onclick = () => dynamicVarsModal.classList.add('hidden');
     }
 
+    // History Modal
+    const historyBtn = document.getElementById('historyBtn');
+    const historyModal = document.getElementById('historyModal');
+    const historyList = document.getElementById('historyList');
+    const closeHistoryBtn = document.getElementById('closeHistoryBtn');
+    const exportHistoryBtn = document.getElementById('exportHistoryBtn');
+    const exportAllHistoryBtn = document.getElementById('exportAllHistoryBtn');
+    const clearHistoryBtn = document.getElementById('clearHistoryBtn');
+
+    if (historyBtn && historyModal) {
+        historyBtn.onclick = () => {
+            renderHistoryList();
+            historyModal.classList.remove('hidden');
+        };
+    }
+    if (closeHistoryBtn && historyModal) {
+        closeHistoryBtn.onclick = () => historyModal.classList.add('hidden');
+    }
+    if (clearHistoryBtn) {
+        clearHistoryBtn.onclick = async () => {
+            if (requestHistory.length === 0) return;
+            if (await showConfirmModal('Clear History', 'Are you sure you want to clear all history entries?')) {
+                requestHistory = [];
+                renderHistoryList();
+            }
+        };
+    }
+    if (exportAllHistoryBtn) {
+        exportAllHistoryBtn.onclick = () => exportHistoryToHTML(requestHistory);
+    }
+    if (exportHistoryBtn) {
+        exportHistoryBtn.onclick = () => {
+            const selected = getSelectedHistoryEntries();
+            if (selected.length === 0) {
+                alert('Please select at least one entry to export.');
+                return;
+            }
+            exportHistoryToHTML(selected);
+        };
+    }
+
+    function getSelectedHistoryEntries() {
+        const checkboxes = historyList.querySelectorAll('.history-checkbox:checked');
+        return Array.from(checkboxes).map(cb => {
+            return requestHistory.find(h => h.id === cb.dataset.id);
+        }).filter(Boolean);
+    }
+
+    function renderHistoryList() {
+        if (!historyList) return;
+        historyList.innerHTML = '';
+        
+        if (requestHistory.length === 0) {
+            historyList.innerHTML = '<div style="text-align: center; color: var(--text-muted); padding: 40px;">No history entries yet. Run some requests!</div>';
+            return;
+        }
+
+        // Group entries by flow execution (using flowRunId to separate multiple runs)
+        const groups = [];
+        let currentGroup = null;
+        
+        requestHistory.forEach(entry => {
+            if (entry.executionType === 'flow') {
+                if (!currentGroup || currentGroup.flowRunId !== entry.flowRunId) {
+                    currentGroup = { flowRunId: entry.flowRunId, flowName: entry.flowName, flowGroup: entry.flowGroup, flowStartTime: entry.flowStartTime, entries: [] };
+                    groups.push(currentGroup);
+                }
+                currentGroup.entries.push(entry);
+            } else {
+                // Single requests go in their own group
+                currentGroup = { flowRunId: null, flowName: null, flowGroup: null, flowStartTime: null, entries: [] };
+                groups.push(currentGroup);
+                currentGroup.entries.push(entry);
+            }
+        });
+
+        // Render each group
+        groups.forEach(group => {
+            const isFlow = group.flowRunId !== null;
+            
+            if (isFlow) {
+                const groupId = 'history-group-' + group.flowRunId;
+                const startTime = group.flowStartTime ? new Date(group.flowStartTime).toLocaleString() : '';
+                
+                // Add flow group header with select all
+                const groupHeader = document.createElement('div');
+                groupHeader.className = 'history-group-header';
+                groupHeader.innerHTML = `
+                    <input type="checkbox" class="history-group-checkbox" data-flowrun="${group.flowRunId}" onclick="event.stopPropagation()">
+                    <span class="history-group-name">${escapeHTML(group.flowGroup || 'Default')} / ${escapeHTML(group.flowName)}</span>
+                    <span class="history-group-time">${startTime}</span>
+                    <span class="history-group-count">${group.entries.length} steps</span>
+                    <span class="history-group-toggle" onclick="event.stopPropagation(); toggleHistoryGroup('${groupId}', this.parentElement)"><i class="fas fa-chevron-right"></i></span>
+                `;
+                groupHeader.onclick = () => toggleHistoryGroup(groupId, groupHeader);
+                historyList.appendChild(groupHeader);
+                
+                const groupCheckbox = groupHeader.querySelector('.history-group-checkbox');
+                groupCheckbox.addEventListener('change', (e) => {
+                    group.entries.forEach(entry => {
+                        const cb = document.querySelector(`.history-checkbox[data-id="${entry.id}"]`);
+                        if (cb) cb.checked = e.target.checked;
+                    });
+                });
+
+                // Add container for flow entries (hidden by default, oldest to newest)
+                const entriesContainer = document.createElement('div');
+                entriesContainer.id = groupId;
+                entriesContainer.style.display = 'none';
+                
+                [...group.entries].reverse().forEach(entry => {
+                    entriesContainer.appendChild(createHistoryEntryElement(entry));
+                });
+                
+                historyList.appendChild(entriesContainer);
+            } else {
+                // Single requests - render directly
+                group.entries.forEach(entry => {
+                    historyList.appendChild(createHistoryEntryElement(entry));
+                });
+            }
+        });
+    }
+
+    function createHistoryEntryElement(entry) {
+            const div = document.createElement('div');
+            div.className = 'history-entry';
+            if (entry.executionType === 'flow') {
+                div.classList.add('history-flow');
+            }
+
+            const timestamp = new Date(entry.timestamp);
+            const timeStr = timestamp.toLocaleTimeString();
+            const dateStr = timestamp.toLocaleDateString();
+            
+            const methodBadge = entry.request ? 
+                `<span class="method-badge ${entry.request.method}">${entry.request.method}</span>` :
+                `<span class="method-badge action">${entry.stepType}</span>`;
+
+            const statusBadge = entry.response ? 
+                `<span class="status-badge ${entry.response.status >= 200 && entry.response.status < 300 ? 'success' : entry.response.status >= 400 ? 'error' : 'warning'}">${entry.response.status}</span>` :
+                entry.error ? 
+                `<span class="status-badge error">Error</span>` :
+                `<span class="status-badge success">OK</span>`;
+
+            const duration = entry.response ? `${entry.response.time_ms}ms` : (entry.actionData && entry.actionData.ms ? `${entry.actionData.ms}ms` : '-');
+
+            const flowInfo = entry.executionType === 'flow' ? 
+                `<span class="history-flow-info"><i class="fas fa-stream"></i> ${entry.flowName}</span>` : 
+                `<span class="history-flow-info"><i class="fas fa-play"></i> Run Step</span>`;
+
+            const detailsId = 'history-details-' + entry.id;
+            
+            div.innerHTML = `
+                <div class="history-entry-header" onclick="toggleHistoryDetails('${detailsId}', '${entry.id}', this)">
+                    <input type="checkbox" class="history-checkbox" data-id="${entry.id}">
+                    <span class="history-time">${dateStr} ${timeStr}</span>
+                    ${flowInfo}
+                    ${methodBadge}
+                    <span class="history-step-name">${escapeHTML(entry.stepName)}</span>
+                    ${entry.request ? `<span class="history-url">${escapeHTML(entry.request.url)}</span>` : ''}
+                    ${statusBadge}
+                    <span class="history-duration">${duration}</span>
+                    <button class="btn-icon history-expand-btn" onclick="event.stopPropagation(); toggleHistoryDetails('${detailsId}', '${entry.id}', this.parentElement)"><i class="fas fa-chevron-down"></i></button>
+                </div>
+                <div id="${detailsId}" style="display: none;">
+                </div>
+            `;
+
+            return div;
+    }
+
+    window.toggleHistoryDetails = function(detailsId, entryId, header) {
+        const details = document.getElementById(detailsId);
+        const expandBtn = header.querySelector('.history-expand-btn');
+        
+        if (details.style.display === 'none') {
+            details.style.display = 'block';
+            expandBtn.innerHTML = '<i class="fas fa-chevron-up"></i>';
+            if (!details.innerHTML.trim()) {
+                const entry = requestHistory.find(h => h.id === entryId);
+                if (entry) {
+                    details.innerHTML = renderHistoryDetails(entry);
+                }
+            }
+        } else {
+            details.style.display = 'none';
+            expandBtn.innerHTML = '<i class="fas fa-chevron-down"></i>';
+        }
+    };
+
+    window.toggleHistoryGroup = function(groupId, header) {
+        const container = document.getElementById(groupId);
+        const toggleIcon = header.querySelector('.history-group-toggle i');
+        
+        if (container.style.display === 'none') {
+            container.style.display = 'block';
+            toggleIcon.className = 'fas fa-chevron-down';
+        } else {
+            container.style.display = 'none';
+            toggleIcon.className = 'fas fa-chevron-right';
+        }
+    };
+
+    function renderHistoryDetails(entry) {
+        let html = '<div style="padding: 12px; background: rgba(0,0,0,0.2); border-radius: 4px; margin: 8px;">';
+        
+        if (entry.request) {
+            html += `<div style="color: #60a5fa; font-weight: bold; margin-bottom: 8px;">REQUEST</div>`;
+            html += `<div style="margin-bottom: 4px;"><strong>Method:</strong> ${entry.request.method}</div>`;
+            html += `<div style="margin-bottom: 8px; word-break: break-all;"><strong>URL:</strong> ${escapeHTML(entry.request.url)}</div>`;
+            
+            if (entry.request.headers && Object.keys(entry.request.headers).length > 0) {
+                html += `<div style="margin-bottom: 8px;"><strong>Headers:</strong><pre style="margin: 4px 0; padding: 8px; background: rgba(0,0,0,0.3); border-radius: 4px; overflow-x: auto;">${escapeHTML(JSON.stringify(entry.request.headers, null, 2))}</pre></div>`;
+            }
+            
+            if (entry.request.body) {
+                let bodyContent = typeof entry.request.body === 'object' ? JSON.stringify(entry.request.body, null, 2) : entry.request.body;
+                html += `<div style="margin-bottom: 8px;"><strong>Body:</strong><pre style="margin: 4px 0; padding: 8px; background: rgba(0,0,0,0.3); border-radius: 4px; overflow-x: auto;">${escapeHTML(bodyContent)}</pre></div>`;
+            }
+        } else {
+            html += `<div style="color: #a78bfa; font-weight: bold; margin-bottom: 8px;">ACTION: ${entry.stepType.toUpperCase()}</div>`;
+            if (entry.actionData) {
+                html += `<pre style="margin: 4px 0; padding: 8px; background: rgba(0,0,0,0.3); border-radius: 4px; overflow-x: auto;">${escapeHTML(JSON.stringify(entry.actionData, null, 2))}</pre>`;
+            }
+            if (entry.result) {
+                html += `<div style="margin-top: 8px;"><strong>Result:</strong> ${escapeHTML(JSON.stringify(entry.result, null, 2))}</div>`;
+            }
+        }
+
+        if (entry.response) {
+            html += `<div style="color: #34d399; font-weight: bold; margin: 16px 0 8px;">RESPONSE</div>`;
+            html += `<div><strong>Status:</strong> ${entry.response.status} ${entry.response.status_text || ''}</div>`;
+            html += `<div style="margin-bottom: 8px;"><strong>Time:</strong> ${entry.response.time_ms}ms</div>`;
+            
+            if (entry.response.headers) {
+                html += `<div style="margin-bottom: 8px;"><strong>Headers:</strong><pre style="margin: 4px 0; padding: 8px; background: rgba(0,0,0,0.3); border-radius: 4px; overflow-x: auto;">${escapeHTML(JSON.stringify(entry.response.headers, null, 2))}</pre></div>`;
+            }
+            
+            if (entry.response.body) {
+                let formattedBody = entry.response.body;
+                if (entry.response.is_json) {
+                    formattedBody = generateJSONHTML(typeof formattedBody === 'string' ? JSON.parse(formattedBody) : formattedBody);
+                } else if (entry.response.is_xml) {
+                    formattedBody = generateXMLHTML(formattedBody);
+                } else {
+                    formattedBody = escapeHTML(formattedBody);
+                }
+                html += `<div style="margin-bottom: 8px;"><strong>Body:</strong><pre style="margin: 4px 0; padding: 8px; background: rgba(0,0,0,0.3); border-radius: 4px; overflow-x: auto; max-height: 300px; overflow-y: auto;">${formattedBody}</pre></div>`;
+            }
+        }
+
+        if (entry.error) {
+            html += `<div style="color: #f87171; font-weight: bold; margin: 16px 0 8px;">ERROR</div>`;
+            html += `<div style="color: #f87171;">${escapeHTML(entry.error)}</div>`;
+        }
+
+        html += '</div>';
+        return html;
+    }
+
+    function exportHistoryToHTML(entries) {
+        if (!entries || entries.length === 0) {
+            alert('No entries to export.');
+            return;
+        }
+
+        const styles = `
+            body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; padding: 20px; }
+            .entry { background: #1e293b; border: 1px solid #334155; border-radius: 8px; margin-bottom: 16px; overflow: hidden; }
+            .entry-header { display: flex; align-items: center; gap: 12px; padding: 12px 16px; background: rgba(0,0,0,0.2); border-bottom: 1px solid #334155; flex-wrap: wrap; }
+            .method-badge { padding: 2px 8px; border-radius: 4px; font-weight: 600; font-size: 0.75rem; }
+            .method-badge.GET { background: #22c55e20; color: #22c55e; }
+            .method-badge.POST { background: #3b82f620; color: #3b82f6; }
+            .method-badge.PUT { background: #f59e0b20; color: #f59e0b; }
+            .method-badge.PATCH { background: #8b5cf620; color: #8b5cf6; }
+            .method-badge.DELETE { background: #ef444420; color: #ef4444; }
+            .method-badge.action { background: #a78bfa20; color: #a78bfa; }
+            .status-badge { padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 500; }
+            .status-badge.success { background: #22c55e20; color: #22c55e; }
+            .status-badge.error { background: #ef444420; color: #ef4444; }
+            .status-badge.warning { background: #f59e0b20; color: #f59e0b; }
+            .flow-info { color: #94a3b8; font-size: 0.85rem; }
+            .step-name { font-weight: 600; }
+            .url { color: #94a3b8; font-size: 0.85rem; word-break: break-all; flex: 1; min-width: 200px; }
+            .duration { color: #94a3b8; font-size: 0.85rem; }
+            .timestamp { color: #64748b; font-size: 0.75rem; }
+            .details { padding: 16px; }
+            .section-title { color: #60a5fa; font-weight: bold; margin: 16px 0 8px; }
+            .section-title.response { color: #34d399; }
+            .section-title.error { color: #f87171; }
+            pre { margin: 4px 0; padding: 12px; background: #0f172a; border-radius: 4px; overflow-x: auto; font-size: 0.85rem; line-height: 1.5; }
+            .json-key { color: #60a5fa; }
+            .json-str { color: #34d399; }
+            .json-num { color: #f59e0b; }
+            .json-bool { color: #8b5cf6; }
+            .json-null { color: #94a3b8; }
+            h1 { color: #f8fafc; margin-bottom: 24px; }
+            .export-info { color: #64748b; margin-bottom: 16px; font-size: 0.85rem; }
+        `;
+
+        let html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>API History Export</title><style>${styles}</style></head><body>`;
+        html += `<h1><i class="fas fa-history"></i> Request History Export</h1>`;
+        html += `<div class="export-info">Exported ${entries.length} entries on ${new Date().toLocaleString()}</div>`;
+
+        entries.forEach(entry => {
+            const timestamp = new Date(entry.timestamp);
+            const timeStr = timestamp.toLocaleTimeString();
+            const dateStr = timestamp.toLocaleDateString();
+            
+            const methodBadge = entry.request ? 
+                `<span class="method-badge ${entry.request.method}">${entry.request.method}</span>` :
+                `<span class="method-badge action">${entry.stepType}</span>`;
+
+            const statusBadge = entry.response ? 
+                `<span class="status-badge ${entry.response.status >= 200 && entry.response.status < 300 ? 'success' : entry.response.status >= 400 ? 'error' : 'warning'}">${entry.response.status}</span>` :
+                entry.error ? 
+                `<span class="status-badge error">Error</span>` :
+                `<span class="status-badge success">OK</span>`;
+
+            const flowInfo = entry.executionType === 'flow' ? 
+                `<span class="flow-info"><i class="fas fa-stream"></i> ${escapeHTML(entry.flowName)}</span>` : 
+                `<span class="flow-info"><i class="fas fa-play"></i> Run Step</span>`;
+
+            const duration = entry.response ? `${entry.response.time_ms}ms` : (entry.actionData && entry.actionData.ms ? `${entry.actionData.ms}ms` : '-');
+
+            html += `<div class="entry">`;
+            html += `<div class="entry-header">`;
+            html += `<span class="timestamp">${dateStr} ${timeStr}</span>`;
+            html += flowInfo;
+            html += methodBadge;
+            html += `<span class="step-name">${escapeHTML(entry.stepName)}</span>`;
+            if (entry.request) html += `<span class="url">${escapeHTML(entry.request.url)}</span>`;
+            html += statusBadge;
+            html += `<span class="duration">${duration}</span>`;
+            html += `</div>`;
+            html += `<div class="details">`;
+
+            if (entry.request) {
+                html += `<div class="section-title">REQUEST</div>`;
+                html += `<div><strong>Method:</strong> ${entry.request.method}</div>`;
+                html += `<div style="margin: 8px 0; word-break: break-all;"><strong>URL:</strong> ${escapeHTML(entry.request.url)}</div>`;
+                
+                if (entry.request.headers && Object.keys(entry.request.headers).length > 0) {
+                    html += `<div style="margin: 8px 0;"><strong>Headers:</strong><pre>${escapeHTML(JSON.stringify(entry.request.headers, null, 2))}</pre></div>`;
+                }
+                
+                if (entry.request.body) {
+                    let bodyContent = typeof entry.request.body === 'object' ? JSON.stringify(entry.request.body, null, 2) : entry.request.body;
+                    html += `<div style="margin: 8px 0;"><strong>Body:</strong><pre>${escapeHTML(bodyContent)}</pre></div>`;
+                }
+            } else {
+                html += `<div class="section-title" style="color: #a78bfa;">ACTION: ${entry.stepType.toUpperCase()}</div>`;
+                if (entry.actionData) {
+                    html += `<pre>${escapeHTML(JSON.stringify(entry.actionData, null, 2))}</pre>`;
+                }
+                if (entry.result) {
+                    html += `<div style="margin-top: 8px;"><strong>Result:</strong> ${escapeHTML(JSON.stringify(entry.result, null, 2))}</div>`;
+                }
+            }
+
+            if (entry.response) {
+                html += `<div class="section-title response">RESPONSE</div>`;
+                html += `<div><strong>Status:</strong> ${entry.response.status} ${entry.response.status_text || ''}</div>`;
+                html += `<div style="margin-bottom: 8px;"><strong>Time:</strong> ${entry.response.time_ms}ms</div>`;
+                
+                if (entry.response.headers) {
+                    html += `<div style="margin: 8px 0;"><strong>Headers:</strong><pre>${escapeHTML(JSON.stringify(entry.response.headers, null, 2))}</pre></div>`;
+                }
+                
+                if (entry.response.body) {
+                    let formattedBody = entry.response.body;
+                    if (entry.response.is_json) {
+                        formattedBody = generateJSONHTML(typeof formattedBody === 'string' ? JSON.parse(formattedBody) : formattedBody);
+                    } else if (entry.response.is_xml) {
+                        formattedBody = generateXMLHTML(formattedBody);
+                    } else {
+                        formattedBody = escapeHTML(formattedBody);
+                    }
+                    html += `<div style="margin: 8px 0;"><strong>Body:</strong><pre>${formattedBody}</pre></div>`;
+                }
+            }
+
+            if (entry.error) {
+                html += `<div class="section-title error">ERROR</div>`;
+                html += `<div style="color: #f87171;">${escapeHTML(entry.error)}</div>`;
+            }
+
+            html += `</div></div>`;
+        });
+
+        html += `</body></html>`;
+
+        const blob = new Blob([html], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `api-history-${new Date().toISOString().split('T')[0]}.html`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
     // Groups Toggle
     const groupsHeader = document.getElementById('groupsHeader');
     const groupsChevron = document.querySelector('.groups-chevron');
@@ -150,6 +554,19 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentGroup = 'Default';
     let activeRequestId = null;
     let expandedFlows = new Set(); // Track expanded flows by "groupName:flowName"
+
+    const HISTORY_LIMIT = 100;
+    let requestHistory = [];
+
+    // --- History Management ---
+    function addToHistory(entry) {
+        entry.id = Date.now().toString() + Math.random().toString(36).substr(2, 9);
+        entry.timestamp = new Date().toISOString();
+        requestHistory.unshift(entry);
+        if (requestHistory.length > HISTORY_LIMIT) {
+            requestHistory.pop();
+        }
+    }
 
     // --- Auth DOM Elements ---
     const authRadios = document.querySelectorAll('input[name="authType"]');
@@ -637,10 +1054,49 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Format Response
             displayResponse(data);
+
+            // Add to history
+            const activeStep = savedCollections.find(r => r.id === activeRequestId);
+            addToHistory({
+                executionType: 'single',
+                stepName: activeStep ? activeStep.name : 'Untitled Step',
+                stepType: 'request',
+                request: {
+                    method: requestData.method,
+                    url: requestData.url,
+                    headers: requestData.headers,
+                    body: requestData.body
+                },
+                response: data.error ? null : {
+                    status: data.status,
+                    status_text: data.status_text,
+                    headers: data.headers,
+                    body: data.body,
+                    is_json: data.is_json,
+                    is_xml: data.is_xml,
+                    time_ms: data.time_ms,
+                    size_bytes: data.size_bytes,
+                    error: data.error
+                },
+                error: data.error || null
+            });
         } catch (error) {
             resStatus.textContent = "Error";
             resStatus.className = "status-badge error";
             responseBody.textContent = `Client Error: ${error.message}`;
+            
+            addToHistory({
+                executionType: 'single',
+                stepName: (savedCollections.find(r => r.id === activeRequestId) || {}).name || 'Untitled Step',
+                stepType: 'request',
+                request: {
+                    method: requestData.method,
+                    url: requestData.url,
+                    headers: requestData.headers,
+                    body: requestData.body
+                },
+                error: error.message
+            });
         } finally {
             loadingOverlay.classList.add('hidden');
         }
@@ -1646,6 +2102,9 @@ ${sBody ? `<div style="color:#34d399; font-weight:bold; margin-bottom:4px;">RES 
 
     async function runFlow(flowName, requests) {
         approvedMissingVars.clear();
+        const flowRunId = 'flow-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+        const flowStartTime = new Date().toISOString();
+        
         flowRunnerTitle.textContent = `Running Flow: ${flowName}`;
         flowRunnerLogs.innerHTML = '';
         flowRunnerStatus.textContent = 'Running';
@@ -1684,20 +2143,66 @@ ${sBody ? `<div style="color:#34d399; font-weight:bold; margin-bottom:4px;">RES 
                         logFlow(`> Action: Cleared ${count} variable(s)`, '#f87171');
                     }
                     saveServerData();
+
+                    addToHistory({
+                        executionType: 'flow',
+                        flowRunId: flowRunId,
+                        flowStartTime: flowStartTime,
+                        flowName: flowName,
+                        stepName: req.name,
+                        stepType: 'clear_vars',
+                        actionData: { vars: varsToClear.length === 0 ? 'ALL' : varsToClear.join(', ') }
+                    });
                 } else if (req.type === 'delay') {
                     const ms = req.actionData.ms || 0;
                     logFlow(`> Action: Waiting for ${ms}ms...`, '#fbbf24');
                     await new Promise(r => setTimeout(r, ms));
+
+                    addToHistory({
+                        executionType: 'flow',
+                        flowRunId: flowRunId,
+                        flowStartTime: flowStartTime,
+                        flowName: flowName,
+                        stepName: req.name,
+                        stepType: 'delay',
+                        actionData: { ms: ms }
+                    });
                 } else if (req.type === 'script') {
                     logFlow(`> Action: Running Javascript`, '#a78bfa');
+                    let scriptResult = null;
+                    let scriptError = null;
                     try {
                         const envFunc = new Function('env', req.actionData.script);
                         envFunc(savedEnvironment);
                         saveServerData();
                         logFlow(`> Script execution finished successfully.`, '#a78bfa');
+                        scriptResult = 'success';
                     } catch(e) {
                          logFlow(`✗ Script Error: ${e.message}`, '#ef4444');
+                         scriptError = e.message;
+                          addToHistory({
+                              executionType: 'flow',
+                              flowRunId: flowRunId,
+                              flowStartTime: flowStartTime,
+                              flowName: flowName,
+                              stepName: req.name,
+                              stepType: 'script',
+                              actionData: { script: req.actionData.script },
+                              result: { error: scriptError }
+                          });
                          break;
+                    }
+                    if (!scriptError) {
+                        addToHistory({
+                            executionType: 'flow',
+                            flowRunId: flowRunId,
+                            flowStartTime: flowStartTime,
+                            flowName: flowName,
+                            stepName: req.name,
+                            stepType: 'script',
+                            actionData: { script: req.actionData.script },
+                            result: { status: 'success' }
+                        });
                     }
                 } else if (req.type === 'conditional') {
                     let varVal, valStr;
@@ -1728,9 +2233,29 @@ ${sBody ? `<div style="color:#34d399; font-weight:bold; margin-bottom:4px;">RES 
 
                     if (!result) {
                         logFlow(`> Action: Condition failed ("${varVal}" ${op} "${valStr}"). Aborting flow.`, '#fbbf24');
+                        addToHistory({
+                            executionType: 'flow',
+                            flowRunId: flowRunId,
+                            flowStartTime: flowStartTime,
+                            flowName: flowName,
+                            stepName: req.name,
+                            stepType: 'conditional',
+                            actionData: { var: req.actionData.var, op: req.actionData.op, val: req.actionData.val },
+                            result: { passed: false, actualValue: varVal }
+                        });
                         break;
                     } else {
                         logFlow(`> Action: Condition passed ("${varVal}" ${op} "${valStr}"). Continuing.`, '#34d399');
+                        addToHistory({
+                            executionType: 'flow',
+                            flowRunId: flowRunId,
+                            flowStartTime: flowStartTime,
+                            flowName: flowName,
+                            stepName: req.name,
+                            stepType: 'conditional',
+                            actionData: { var: req.actionData.var, op: req.actionData.op, val: req.actionData.val },
+                            result: { passed: true, actualValue: varVal }
+                        });
                     }
                 }
                 successCount++;
@@ -1784,10 +2309,52 @@ ${sBody ? `<div style="color:#34d399; font-weight:bold; margin-bottom:4px;">RES 
                 
                 if (data.error) {
                     logInteractiveRequest(requestData, { status: 500, status_text: 'Execution Failed', error: data.error });
+                    
+                    addToHistory({
+                        executionType: 'flow',
+                        flowRunId: flowRunId,
+                        flowStartTime: flowStartTime,
+                        flowName: flowName,
+                        stepName: req.name,
+                        stepType: 'request',
+                        request: {
+                            method: requestData.method,
+                            url: requestData.url,
+                            headers: requestData.headers,
+                            body: requestData.body
+                        },
+                        response: null,
+                        error: data.error
+                    });
                     break;
                 }
                 
                 logInteractiveRequest(requestData, data);
+                
+                addToHistory({
+                    executionType: 'flow',
+                    flowRunId: flowRunId,
+                    flowStartTime: flowStartTime,
+                    flowName: flowName,
+                    stepName: req.name,
+                    stepType: 'request',
+                    request: {
+                        method: requestData.method,
+                        url: requestData.url,
+                        headers: requestData.headers,
+                        body: requestData.body
+                    },
+                    response: {
+                        status: data.status,
+                        status_text: data.status_text,
+                        headers: data.headers,
+                        body: data.body,
+                        is_json: data.is_json,
+                        is_xml: data.is_xml,
+                        time_ms: data.time_ms,
+                        size_bytes: data.size_bytes
+                    }
+                });
                 
                 if (data.status >= 200 && data.status < 300) {
                     successCount++;
@@ -1811,6 +2378,22 @@ ${sBody ? `<div style="color:#34d399; font-weight:bold; margin-bottom:4px;">RES 
             } catch (error) {
                 pendingEle.remove();
                 logInteractiveRequest(requestData, { status: 500, status_text: 'Network Error', error: error.message });
+                
+                addToHistory({
+                    executionType: 'flow',
+                    flowRunId: flowRunId,
+                    flowStartTime: flowStartTime,
+                    flowName: flowName,
+                    stepName: req.name,
+                    stepType: 'request',
+                    request: {
+                        method: requestData.method,
+                        url: requestData.url,
+                        headers: requestData.headers,
+                        body: requestData.body
+                    },
+                    error: error.message
+                });
                 break;
             }
         }

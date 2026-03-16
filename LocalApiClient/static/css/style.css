@@ -528,6 +528,10 @@ button {
     backdrop-filter: blur(4px);
 }
 
+.modal.confirm-modal {
+    z-index: 200;
+}
+
 .modal-content {
     background: var(--bg-dark);
     border: 1px solid var(--border);
@@ -695,3 +699,153 @@ select option {
     scrollbar-width: thin;
     scrollbar-color: rgba(148, 163, 184, 0.3) rgba(0, 0, 0, 0.2);
 }
+
+/* History Modal */
+.history-entry {
+    background: var(--bg-panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    transition: border-color 0.2s;
+}
+
+.history-entry:hover {
+    border-color: var(--accent);
+}
+
+.history-entry.history-flow {
+    margin-left: 16px;
+    border-left: 3px solid var(--accent);
+}
+
+.history-entry-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    cursor: pointer;
+}
+
+.history-checkbox {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--accent);
+}
+
+.history-time {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    min-width: 100px;
+}
+
+.history-flow-info {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    min-width: 100px;
+}
+
+.history-step-name {
+    font-weight: 500;
+    min-width: 120px;
+}
+
+.history-url {
+    flex: 1;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.history-duration {
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    min-width: 60px;
+    text-align: right;
+}
+
+.history-expand-btn {
+    padding: 4px 8px;
+    color: var(--text-muted);
+    margin-left: auto;
+}
+
+.history-entry-details {
+    border-top: 1px solid var(--border);
+    background: rgba(0, 0, 0, 0.1);
+}
+
+.history-entry-details .code-view {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+.history-group-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    border-radius: var(--radius-sm);
+    margin-bottom: 8px;
+    margin-top: 8px;
+    cursor: pointer;
+}
+
+.history-group-header:first-child {
+    margin-top: 0;
+}
+
+.history-group-checkbox {
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+    accent-color: var(--accent);
+}
+
+.history-group-toggle {
+    color: var(--text-muted);
+    width: 20px;
+    text-align: center;
+    margin-left: auto;
+}
+
+.history-group-name {
+    font-weight: 600;
+    color: var(--accent);
+}
+
+.history-group-time {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    flex: 1;
+}
+
+.history-group-count {
+    color: var(--text-muted);
+    font-size: 0.75rem;
+    margin-right: 8px;
+}
+
+.method-badge {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 600;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+}
+
+.method-badge.GET { background: rgba(16, 185, 129, 0.2); color: var(--get-color); }
+.method-badge.POST { background: rgba(234, 179, 8, 0.2); color: var(--post-color); }
+.method-badge.PUT { background: rgba(59, 130, 246, 0.2); color: var(--put-color); }
+.method-badge.PATCH { background: rgba(139, 92, 246, 0.2); color: var(--patch-color); }
+.method-badge.DELETE { background: rgba(239, 68, 68, 0.2); color: var(--delete-color); }
+.method-badge.action { background: rgba(139, 92, 246, 0.2); color: #a78bfa; }
+.method-badge.request { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+.method-badge.delay { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
+.method-badge.script { background: rgba(139, 92, 246, 0.2); color: #a78bfa; }
+.method-badge.conditional { background: rgba(236, 72, 153, 0.2); color: #ec4899; }
+.method-badge.clear_vars { background: rgba(239, 68, 68, 0.2); color: #f87171; }
