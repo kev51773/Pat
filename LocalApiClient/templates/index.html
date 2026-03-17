@@ -314,7 +314,7 @@
             <div style="padding: 24px 24px 16px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: flex-start;">
                 <div>
                     <h3 style="margin-bottom: 4px;">Dynamic Variables</h3>
-                    <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">Use these with <code>{% raw %}{{$name}}{% endraw %}</code> for automatic values.</p>
+                    <p style="font-size: 0.8rem; color: var(--text-muted); margin: 0;">Use these with <code>{% raw %}{{$name}}{% endraw %}</code> for automatic values. Can add simple + - * / operations after the variable name.</p>
                 </div>
                 <button id="closeDynamicVarsBtn" class="btn-primary">Done</button>
             </div>
@@ -405,6 +405,6 @@
         <button id="cancelExtractBtn" class="btn-icon"><i class="fas fa-times"></i></button>
     </div>
 
-    <script src="{{ url_for('static', filename='js/app.js', v=21) }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js', v=23) }}"></script>
 </body>
 </html>

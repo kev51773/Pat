@@ -869,14 +869,21 @@ document.addEventListener('DOMContentLoaded', () => {
         while ((match = regex.exec(str)) !== null) {
             const key = match[1].trim();
             
-            // If it's a dynamic variable, we don't check savedEnvironment
-            if (key.startsWith('$')) {
-                const dynVal = getDynamicVar(key);
+            // Check for math operations: extract base name to check validity
+            let checkKey = key;
+            const mathMatch = key.match(/^(.+?)([\+\-\*/])(\-?\d+\.?\d*)$/);
+            if (mathMatch) {
+                checkKey = mathMatch[1].trim();
+            }
+            
+            // If it's a dynamic variable (with or without math), we don't check savedEnvironment
+            if (checkKey.startsWith('$')) {
+                const dynVal = getDynamicVar(checkKey);
                 if (dynVal !== null) continue; // Found a valid dynamic var
             }
 
-            if (savedEnvironment[key] === undefined && !missing.includes(key) && !approvedMissingVars.has(key)) {
-                missing.push(key);
+            if (savedEnvironment[checkKey] === undefined && !missing.includes(checkKey) && !approvedMissingVars.has(checkKey)) {
+                missing.push(checkKey);
             }
         }
         
@@ -890,6 +897,45 @@ document.addEventListener('DOMContentLoaded', () => {
 
         return str.replace(/\{\{([^}]+)\}\}/g, (mOriginal, key) => {
             const k = key.trim();
+            
+            // Check for math operations: + - * /
+            const mathMatch = k.match(/^(.+?)([\+\-\*/])(\-?\d+\.?\d*)$/);
+            if (mathMatch) {
+                const [, baseName, operator, operandStr] = mathMatch;
+                const base = baseName.trim();
+                const operand = parseFloat(operandStr);
+                
+                // Get base value
+                let baseValue = null;
+                if (base.startsWith('$')) {
+                    const dynVal = getDynamicVar(base);
+                    if (dynVal !== null && !isNaN(parseFloat(dynVal))) {
+                        baseValue = parseFloat(dynVal);
+                    }
+                } else if (savedEnvironment[base] !== undefined) {
+                    const envVal = savedEnvironment[base];
+                    if (!isNaN(parseFloat(envVal))) {
+                        baseValue = parseFloat(envVal);
+                    }
+                }
+                
+                // Perform math if both values are valid numbers
+                if (baseValue !== null && !isNaN(operand)) {
+                    let result;
+                    switch (operator) {
+                        case '+': result = baseValue + operand; break;
+                        case '-': result = baseValue - operand; break;
+                        case '*': result = baseValue * operand; break;
+                        case '/': result = operand !== 0 ? baseValue / operand : NaN; break;
+                    }
+                    if (!isNaN(result)) {
+                        return result.toString();
+                    }
+                }
+                // If math failed, fall through to normal variable resolution
+            }
+            
+            // Normal variable resolution (without math)
             if (k.startsWith('$')) {
                 const dynVal = getDynamicVar(k);
                 return dynVal !== null ? dynVal : mOriginal;
